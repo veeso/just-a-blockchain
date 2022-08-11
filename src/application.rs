@@ -3,12 +3,16 @@
 //! the application module is the core of the jab client
 
 use crate::blockchain::{Block, Chain};
+use crate::mining::{Miner, MiningDatabase};
 use crate::net::{Msg, Node};
 
+use futures::StreamExt;
 use tokio::time::{interval, Duration, Interval};
 
+/// Jab client application
 pub struct Application {
     blockchain: Chain,
+    miners: MiningDatabase,
     node: Node,
     poll_interval: Interval,
 }
@@ -29,6 +33,7 @@ impl Application {
         info!("node successfully initialized (id: {})", node.id());
         Ok(Self {
             blockchain,
+            miners: MiningDatabase::new(Miner::new(node.id())),
             node,
             poll_interval: interval(Duration::from_secs(5)),
         })
@@ -40,26 +45,40 @@ impl Application {
             anyhow::bail!("Failed to start listener: {}", err.to_string());
         }
         info!("listener started");
+        // main loop
         loop {
-            tokio::select! {
-                event = self.node.poll() => {
+            let evt: Option<Msg> = tokio::select! {
+                event = self.node.swarm.next() => {
+                    debug!("Unhandled Swarm Event: {:?}", event);
+                    None
+                }
+                event = self.node.event_receiver.next() => {
                     match event {
-                        Ok(Some(Msg::Block(block))) => {
-                            self.on_block_received(block.block).await;
-
-                        },
-                        Ok(Some(Msg::RequestBlock(block_req))) => {
-                            self.on_block_requested(block_req.index).await;
-
-                        }
-                        Ok(None) => {},
-                        Err(err) => {
-                            error!("poll error: {}", err);
-                        }
+                        Some(Ok(event)) => Some(event),
+                        _ => None,
                     }
                 }
                 _ = self.poll_interval.tick() => {
-                    self.on_tick().await;
+                    self.on_get_next_block_tick().await;
+                    self.send_miner_requests().await;
+                    self.poll_interval.reset();
+                    None
+                }
+            };
+            if let Some(event) = evt {
+                match event {
+                    Msg::Block(block) => {
+                        self.on_block_received(block.block).await;
+                    }
+                    Msg::RequestBlock(block_req) => {
+                        self.on_block_requested(block_req.index).await;
+                    }
+                    Msg::RegisterMiners(miners) => {
+                        self.on_register_miners(miners.miners).await;
+                    }
+                    Msg::RequestRegisteredMiners => {
+                        self.on_registered_miners_requested().await;
+                    }
                 }
             }
         }
@@ -78,9 +97,9 @@ impl Application {
 
     /// code to run on block requested
     async fn on_block_requested(&mut self, requested_block: u64) {
-        info!("got a request for block #{}", requested_block);
+        debug!("got a request for block #{}", requested_block);
         if let Some(block) = self.blockchain.get_block(requested_block) {
-            info!("sending block #{}", requested_block);
+            debug!("sending block #{}", requested_block);
             if let Err(err) = self.node.publish(Msg::block(block.clone())).await {
                 error!("could not send `Block` message: {}", err);
             }
@@ -89,9 +108,31 @@ impl Application {
         }
     }
 
+    /// Function to execute on a `RegisterMiners` message
+    async fn on_register_miners(&mut self, miners: Vec<Miner>) {
+        debug!("received new miners database");
+        for miner in miners.into_iter() {
+            self.miners.add_miner(miner);
+        }
+    }
+
+    /// Function to execute on a `RequestRegisteredMiners` message
+    async fn on_registered_miners_requested(&mut self) {
+        debug!("received a request for registered miners; sending database");
+        self.send_miners_database().await;
+    }
+
     /// function to call on interval tick
-    async fn on_tick(&mut self) {
+    async fn on_get_next_block_tick(&mut self) {
         self.get_next_block().await;
+    }
+
+    /// function to execute after the miner_db_timeout elapsed
+    async fn send_miner_requests(&mut self) {
+        // send current miner database
+        self.send_miners_database().await;
+        // request m iners database
+        self.request_registered_miners().await;
     }
 
     /// get next block from other peer through a request
@@ -104,6 +145,26 @@ impl Application {
             Err(err) => {
                 error!("failed to request block #{}: {}", next_index, err);
             }
+        }
+    }
+
+    /// Send miners database
+    async fn send_miners_database(&mut self) {
+        debug!("sending miners database");
+        if let Err(err) = self
+            .node
+            .publish(Msg::register_miners(self.miners.miners()))
+            .await
+        {
+            error!("failed to send registered miners: {}", err);
+        }
+    }
+
+    /// Send a request for the registered miners database
+    async fn request_registered_miners(&mut self) {
+        debug!("sending registered miners request");
+        if let Err(err) = self.node.publish(Msg::request_registered_miners()).await {
+            error!("failed to request registered miners: {}", err);
         }
     }
 }

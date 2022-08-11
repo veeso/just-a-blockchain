@@ -9,6 +9,7 @@ extern crate tracing;
 // -- modules
 mod application;
 mod blockchain;
+mod mining;
 mod net;
 
 use application::Application;

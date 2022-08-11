@@ -2,74 +2,31 @@
 //!
 //! The network module provides the types to setup the P2P network of the jab blockchain
 
+mod error;
 mod message;
 
 use futures::channel::mpsc::{self, UnboundedReceiver, UnboundedSender};
-use futures::{SinkExt, StreamExt};
 use libp2p::{
     core::upgrade,
     floodsub::{self, Floodsub, FloodsubEvent, Topic},
-    identity::{self, Keypair},
+    identity,
     mdns::{Mdns, MdnsEvent},
-    mplex,
-    noise::{self, NoiseError},
+    mplex, noise,
     swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder},
     tcp::TokioTcpTransport,
-    NetworkBehaviour, PeerId, Transport, TransportError,
+    NetworkBehaviour, PeerId, Transport,
 };
 use libp2p_tcp::GenTcpConfig;
-use thiserror::Error;
 
+pub use error::{NodeError, NodeResult};
 pub use message::Msg;
 
-/// Node result
-pub type NodeResult<T> = Result<T, NodeError>;
-
-/// Node error
-#[derive(Error, Debug)]
-pub enum NodeError {
-    #[error("io error: {0}")]
-    Io(std::io::Error),
-    #[error("invalid payload codec: {0}")]
-    InvalidPayload(serde_json::Error),
-    #[error("noise error: {0}")]
-    Noise(NoiseError),
-    #[error("transport error: {0}")]
-    TransportError(TransportError<std::io::Error>),
-}
-
-impl From<serde_json::Error> for NodeError {
-    fn from(e: serde_json::Error) -> Self {
-        Self::InvalidPayload(e)
-    }
-}
-
-impl From<NoiseError> for NodeError {
-    fn from(e: NoiseError) -> Self {
-        Self::Noise(e)
-    }
-}
-
-impl From<std::io::Error> for NodeError {
-    fn from(e: std::io::Error) -> Self {
-        Self::Io(e)
-    }
-}
-
-impl From<TransportError<std::io::Error>> for NodeError {
-    fn from(e: TransportError<std::io::Error>) -> Self {
-        Self::TransportError(e)
-    }
-}
-
 /// Represents the client node in the p2p network
-#[allow(dead_code)]
 pub struct Node {
     id: PeerId,
-    keys: Keypair,
-    swarm: Swarm<JabBehaviour>,
+    pub swarm: Swarm<JabBehaviour>,
     topic: Topic,
-    event_receiver: UnboundedReceiver<NodeResult<Msg>>,
+    pub event_receiver: UnboundedReceiver<NodeResult<Msg>>,
 }
 
 impl Node {
@@ -113,7 +70,6 @@ impl Node {
         };
         Ok(Node {
             id,
-            keys: id_keys,
             swarm,
             topic,
             event_receiver,
@@ -133,15 +89,6 @@ impl Node {
             .map_err(NodeError::from)
     }
 
-    /// Poll for incoming messages
-    pub async fn poll(&mut self) -> NodeResult<Option<Msg>> {
-        let _ = self.swarm.select_next_some().await;
-        match self.event_receiver.try_next() {
-            Ok(Some(result)) => result.map(Some),
-            Ok(None) | Err(_) => Ok(None),
-        }
-    }
-
     /// Publish a message to the newtwork
     pub async fn publish(&mut self, message: Msg) -> NodeResult<()> {
         debug!("publishing {:?}", message);
@@ -159,7 +106,7 @@ impl Node {
 // the events of each behaviour.
 #[derive(NetworkBehaviour)]
 #[behaviour(event_process = true)]
-struct JabBehaviour {
+pub struct JabBehaviour {
     floodsub: Floodsub,
     mdns: Mdns,
     #[behaviour(ignore)]
@@ -170,12 +117,18 @@ impl NetworkBehaviourEventProcess<FloodsubEvent> for JabBehaviour {
     // Called when `floodsub` produces an event.
     fn inject_event(&mut self, message: FloodsubEvent) {
         if let FloodsubEvent::Message(message) = message {
-            debug!("Received: message from {}", message.source);
+            debug!(
+                "Received: message from {} {}",
+                message.source,
+                String::from_utf8_lossy(&message.data)
+            );
             // decode message
-            let mut ev_sender = self.event_sender.clone();
+            let ev_sender = self.event_sender.clone();
             let message = serde_json::from_slice(&message.data).map_err(NodeError::from);
             tokio::spawn(async move {
-                let _ = ev_sender.send(message).await;
+                if let Err(err) = ev_sender.unbounded_send(message) {
+                    error!("failed to send to receiver (thread): {}", err);
+                }
             });
         }
     }
