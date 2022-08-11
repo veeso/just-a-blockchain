@@ -17,6 +17,7 @@ name = "jab"
 path = "src/main.rs"
 
 [dependencies]
+anyhow = "^1.0"
 argh = "0.1.7"
 futures = "0.3"
 libp2p = { version = "0.46.1", features = [ "tcp-tokio" ] }
