@@ -56,7 +56,7 @@ impl Chain {
     }
 
     /// Get block at `index`
-    pub fn get_block(&self, index: u128) -> Option<&Block> {
+    pub fn get_block(&self, index: u64) -> Option<&Block> {
         self.blockchain.get(index as usize)
     }
 
@@ -65,7 +65,7 @@ impl Chain {
         self.blockchain.last().unwrap()
     }
 
-    pub fn generate_next_block(&mut self) -> BlockchainResult<u128> {
+    pub fn generate_next_block(&mut self) -> BlockchainResult<u64> {
         todo!()
     }
 

@@ -11,7 +11,7 @@ pub use transaction::Transaction;
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct Block {
     /// Block index
-    index: u128,
+    index: u64,
     /// Block header
     header: Header,
     /// Transaction information
@@ -20,7 +20,7 @@ pub struct Block {
 
 impl Block {
     /// Instantiates a new `Block`
-    pub fn new(index: u128, header: Header, txns: Transaction) -> Self {
+    pub fn new(index: u64, header: Header, txns: Transaction) -> Self {
         Self {
             index,
             header,
@@ -29,7 +29,7 @@ impl Block {
     }
 
     /// Return block index
-    pub fn index(&self) -> u128 {
+    pub fn index(&self) -> u64 {
         self.index
     }
 

@@ -4,14 +4,16 @@
 
 mod message;
 
-use futures::StreamExt;
+use futures::channel::mpsc::{self, UnboundedReceiver, UnboundedSender};
+use futures::{SinkExt, StreamExt};
 use libp2p::{
     core::upgrade,
-    floodsub::{self, Floodsub, FloodsubEvent, FloodsubMessage, Topic},
+    floodsub::{self, Floodsub, FloodsubEvent, Topic},
     identity::{self, Keypair},
+    mdns::{Mdns, MdnsEvent},
     mplex,
     noise::{self, NoiseError},
-    swarm::{Swarm, SwarmBuilder, SwarmEvent},
+    swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder},
     tcp::TokioTcpTransport,
     NetworkBehaviour, PeerId, Transport, TransportError,
 };
@@ -67,6 +69,7 @@ pub struct Node {
     keys: Keypair,
     swarm: Swarm<JabBehaviour>,
     topic: Topic,
+    event_receiver: UnboundedReceiver<NodeResult<Msg>>,
 }
 
 impl Node {
@@ -89,11 +92,14 @@ impl Node {
         debug!("tcp transport setup ok");
         // setup topic
         let topic = floodsub::Topic::new("jab");
-
+        let (event_sender, event_receiver) = mpsc::unbounded();
         // Create a Swarm to manage peers and events.
         let swarm = {
+            let mdns = Mdns::new(Default::default()).await?;
             let mut behaviour = JabBehaviour {
                 floodsub: Floodsub::new(id),
+                mdns,
+                event_sender,
             };
 
             behaviour.floodsub.subscribe(topic.clone());
@@ -111,6 +117,7 @@ impl Node {
             keys: id_keys,
             swarm,
             topic,
+            event_receiver,
         })
     }
 
@@ -129,16 +136,11 @@ impl Node {
 
     /// Poll for incoming messages
     pub async fn poll(&mut self) -> NodeResult<Option<Msg>> {
-        Ok(match self.swarm.select_next_some().await {
-            SwarmEvent::Behaviour(OutEvent::Floodsub(FloodsubEvent::Message(
-                FloodsubMessage { source, data, .. },
-            ))) => {
-                debug!("received message from {}", source);
-                // decode message
-                Some(serde_json::from_slice(&data).map_err(NodeError::from)?)
-            }
-            _ => None,
-        })
+        let _ = self.swarm.select_next_some();
+        match self.event_receiver.try_next() {
+            Ok(Some(result)) => result.map(Some),
+            Ok(None) | Err(_) => Ok(None),
+        }
     }
 
     /// Publish a message to the newtwork
@@ -157,18 +159,63 @@ impl Node {
 // requires the implementations of `NetworkBehaviourEventProcess` for
 // the events of each behaviour.
 #[derive(NetworkBehaviour)]
-#[behaviour(out_event = "OutEvent")]
+#[behaviour(out_event = "OutEvent", event_process = true)]
 struct JabBehaviour {
     floodsub: Floodsub,
+    mdns: Mdns,
+    #[behaviour(ignore)]
+    event_sender: UnboundedSender<NodeResult<Msg>>,
 }
 
 #[derive(Debug)]
 enum OutEvent {
     Floodsub(FloodsubEvent),
+    Mdns(MdnsEvent),
 }
 
 impl From<FloodsubEvent> for OutEvent {
     fn from(v: FloodsubEvent) -> Self {
         Self::Floodsub(v)
+    }
+}
+
+impl From<MdnsEvent> for OutEvent {
+    fn from(v: MdnsEvent) -> Self {
+        Self::Mdns(v)
+    }
+}
+
+impl NetworkBehaviourEventProcess<FloodsubEvent> for JabBehaviour {
+    // Called when `floodsub` produces an event.
+    fn inject_event(&mut self, message: FloodsubEvent) {
+        if let FloodsubEvent::Message(message) = message {
+            debug!("Received: message from {}", message.source);
+            // decode message
+            let mut ev_sender = self.event_sender.clone();
+            let message = serde_json::from_slice(&message.data).map_err(NodeError::from);
+            tokio::spawn(async move {
+                let _ = ev_sender.send(message).await;
+            });
+        }
+    }
+}
+
+impl NetworkBehaviourEventProcess<MdnsEvent> for JabBehaviour {
+    // Called when `mdns` produces an event.
+    fn inject_event(&mut self, event: MdnsEvent) {
+        match event {
+            MdnsEvent::Discovered(list) => {
+                for (peer, _) in list {
+                    self.floodsub.add_node_to_partial_view(peer);
+                }
+            }
+            MdnsEvent::Expired(list) => {
+                for (peer, _) in list {
+                    if !self.mdns.has_node(&peer) {
+                        self.floodsub.remove_node_from_partial_view(&peer);
+                    }
+                }
+            }
+        }
     }
 }

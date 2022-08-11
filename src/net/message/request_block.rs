@@ -4,11 +4,11 @@
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct RequestBlock {
-    pub index: u128,
+    pub index: u64,
 }
 
 impl RequestBlock {
-    pub fn new(index: u128) -> Self {
+    pub fn new(index: u64) -> Self {
         Self { index }
     }
 }

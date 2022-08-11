@@ -21,7 +21,7 @@ pub enum Msg {
 
 impl Msg {
     /// Create a `RequestBlock` message
-    pub fn request_block(index: u128) -> Self {
+    pub fn request_block(index: u64) -> Self {
         Self::RequestBlock(RequestBlock::new(index))
     }
 

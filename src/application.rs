@@ -77,7 +77,7 @@ impl Application {
     }
 
     /// code to run on block requested
-    async fn on_block_requested(&mut self, requested_block: u128) {
+    async fn on_block_requested(&mut self, requested_block: u64) {
         info!("got a request for block #{}", requested_block);
         if let Some(block) = self.blockchain.get_block(requested_block) {
             info!("sending block #{}", requested_block);
