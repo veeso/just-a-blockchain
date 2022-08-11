@@ -6,7 +6,7 @@
 mod block;
 mod merkle;
 
-use std::time::SystemTime;
+use std::time::UNIX_EPOCH;
 use thiserror::Error;
 
 use self::merkle::JabMerkleTree;
@@ -77,7 +77,7 @@ impl Chain {
         let tree = JabMerkleTree::new(vec![genesis_transaction.clone()]);
         Block::new(
             0,
-            Header::new(Version::V010, None, tree.root_hash(), SystemTime::now()),
+            Header::new(Version::V010, None, tree.root_hash(), UNIX_EPOCH),
             genesis_transaction,
         )
     }

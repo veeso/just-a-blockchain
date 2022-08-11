@@ -2,16 +2,26 @@
 //!
 //! block header
 
-use ring::digest::{Context, Digest, SHA256};
+use ring::digest::{Context, SHA256};
 use std::{
-    hash::Hash,
+    str::FromStr,
     time::{SystemTime, UNIX_EPOCH},
 };
 
 /// Blockchain version
-#[derive(Debug, Hash)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum Version {
     V010,
+}
+
+impl FromStr for Version {
+    type Err = &'static str;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "V010" => Ok(Self::V010),
+            _ => Err("invalid version"),
+        }
+    }
 }
 
 impl ToString for Version {
@@ -23,7 +33,7 @@ impl ToString for Version {
 }
 
 /// Blockchain header
-#[derive(Debug, Hash)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct Header {
     /// blockchain version
     version: Version,

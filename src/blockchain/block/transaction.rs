@@ -5,7 +5,7 @@
 use merkle::Hashable;
 use ring::digest::Context;
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct Transaction {
     pub dummy: String,
 }

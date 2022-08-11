@@ -8,7 +8,7 @@ mod transaction;
 pub use header::{Header, Version};
 pub use transaction::Transaction;
 
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct Block {
     /// Block index
     index: u128,
