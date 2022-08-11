@@ -95,10 +95,9 @@ impl Node {
         let (event_sender, event_receiver) = mpsc::unbounded();
         // Create a Swarm to manage peers and events.
         let swarm = {
-            let mdns = Mdns::new(Default::default()).await?;
             let mut behaviour = JabBehaviour {
                 floodsub: Floodsub::new(id),
-                mdns,
+                mdns: Mdns::new(Default::default()).await?,
                 event_sender,
             };
 
@@ -136,7 +135,7 @@ impl Node {
 
     /// Poll for incoming messages
     pub async fn poll(&mut self) -> NodeResult<Option<Msg>> {
-        let _ = self.swarm.select_next_some();
+        let _ = self.swarm.select_next_some().await;
         match self.event_receiver.try_next() {
             Ok(Some(result)) => result.map(Some),
             Ok(None) | Err(_) => Ok(None),
@@ -159,30 +158,12 @@ impl Node {
 // requires the implementations of `NetworkBehaviourEventProcess` for
 // the events of each behaviour.
 #[derive(NetworkBehaviour)]
-#[behaviour(out_event = "OutEvent", event_process = true)]
+#[behaviour(event_process = true)]
 struct JabBehaviour {
     floodsub: Floodsub,
     mdns: Mdns,
     #[behaviour(ignore)]
     event_sender: UnboundedSender<NodeResult<Msg>>,
-}
-
-#[derive(Debug)]
-enum OutEvent {
-    Floodsub(FloodsubEvent),
-    Mdns(MdnsEvent),
-}
-
-impl From<FloodsubEvent> for OutEvent {
-    fn from(v: FloodsubEvent) -> Self {
-        Self::Floodsub(v)
-    }
-}
-
-impl From<MdnsEvent> for OutEvent {
-    fn from(v: MdnsEvent) -> Self {
-        Self::Mdns(v)
-    }
 }
 
 impl NetworkBehaviourEventProcess<FloodsubEvent> for JabBehaviour {
