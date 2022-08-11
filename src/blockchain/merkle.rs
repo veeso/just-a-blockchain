@@ -5,9 +5,9 @@
 use super::Transaction;
 
 use merkle::MerkleTree;
-use ring::digest::{Algorithm, SHA512};
+use ring::digest::{Algorithm, SHA256};
 
-static DIGEST_ALGO: &'static Algorithm = &SHA512;
+static DIGEST_ALGO: &'static Algorithm = &SHA256;
 
 pub struct JabMerkleTree {
     tree: MerkleTree<Transaction>,

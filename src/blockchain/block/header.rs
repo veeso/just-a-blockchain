@@ -2,7 +2,7 @@
 //!
 //! block header
 
-use sha2::{Digest, Sha256};
+use ring::digest::{Context, Digest, SHA256};
 use std::{
     hash::Hash,
     time::{SystemTime, UNIX_EPOCH},
@@ -53,20 +53,21 @@ impl Header {
 
     /// Calculate sha256 of header
     pub fn hash(&self) -> String {
-        let mut hasher = Sha256::new();
-        hasher.update(self.version.to_string());
+        let mut context = Context::new(&SHA256);
+        context.update(self.version.to_string().as_bytes());
         if let Some(hash) = &self.previous_block_header_hash {
-            hasher.update(hash);
+            context.update(hash.as_bytes());
         }
-        hasher.update(&self.merkle_root_hash);
-        hasher.update(
+        context.update(self.merkle_root_hash.as_bytes());
+        context.update(
             self.created_at
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
                 .as_millis()
-                .to_string(),
+                .to_string()
+                .as_bytes(),
         );
-        hex::encode(hasher.finalize())
+        hex::encode(context.finish())
     }
 
     /// Get previous block header hash
