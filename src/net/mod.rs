@@ -14,7 +14,7 @@ use libp2p::{
     mdns::{Mdns, MdnsEvent},
     mplex,
     noise::{self, NoiseError},
-    swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder, SwarmEvent},
+    swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder},
     tcp::TokioTcpTransport,
     NetworkBehaviour, PeerId, Transport, TransportError,
 };
@@ -54,6 +54,7 @@ impl From<TransportError<std::io::Error>> for NodeError {
 }
 
 /// Represents the client node in the p2p network
+#[allow(dead_code)]
 pub struct Node {
     id: PeerId,
     keys: Keypair,
@@ -86,7 +87,7 @@ impl Node {
         let swarm = {
             let mdns = Mdns::new(Default::default()).await?;
             let mut behaviour = JabBehaviour {
-                floodsub: Floodsub::new(id.clone()),
+                floodsub: Floodsub::new(id),
                 mdns,
             };
 
@@ -106,6 +107,11 @@ impl Node {
             swarm,
             topic,
         })
+    }
+
+    /// Get peer id as string
+    pub fn id(&self) -> String {
+        self.id.to_string()
     }
 
     /// Start listener on a random OS port
