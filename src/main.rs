@@ -12,6 +12,7 @@ mod blockchain;
 mod bridge;
 mod mining;
 mod net;
+mod wallet;
 
 use application::{Application, Config as AppConfig};
 use dotenv::dotenv;
