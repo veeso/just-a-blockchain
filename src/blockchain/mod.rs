@@ -6,7 +6,7 @@
 mod block;
 mod merkle;
 
-use std::time::UNIX_EPOCH;
+use std::time::{SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 
 use self::merkle::JabMerkleTree;
@@ -65,8 +65,26 @@ impl Chain {
         self.blockchain.last().unwrap()
     }
 
-    pub fn generate_next_block(&mut self) -> BlockchainResult<u64> {
-        todo!()
+    /// Generate the next block in the blockchain
+    pub fn generate_next_block(&mut self) -> BlockchainResult<&Block> {
+        let previous_block = self.get_latest_block();
+        let next_index = previous_block.index() + 1;
+        let next_merkle_root = self.calc_merkle_root_hash();
+
+        // generate new block
+        let new_block = Block::new(
+            next_index,
+            Header::new(
+                Version::V010,
+                Some(previous_block.header().merkle_root_hash().to_string()),
+                next_merkle_root,
+                SystemTime::now(),
+            ),
+            Transaction {
+                dummy: String::from("dummy"), // TODO: add real transaction
+            },
+        );
+        self.add_block(new_block).map(|_| self.get_latest_block())
     }
 
     #[inline]
@@ -80,5 +98,16 @@ impl Chain {
             Header::new(Version::V010, None, tree.root_hash(), UNIX_EPOCH),
             genesis_transaction,
         )
+    }
+
+    /// Calculate the merkle root hash from all the transactions in the blockchain
+    fn calc_merkle_root_hash(&self) -> String {
+        let transactions: Vec<Transaction> = self
+            .blockchain
+            .iter()
+            .map(|x| x.transaction().clone())
+            .collect();
+        let tree = JabMerkleTree::new(transactions);
+        tree.root_hash()
     }
 }

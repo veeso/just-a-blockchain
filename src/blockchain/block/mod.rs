@@ -37,4 +37,9 @@ impl Block {
     pub fn header(&self) -> &Header {
         &self.header
     }
+
+    /// Return a reference to the block transaction
+    pub fn transaction(&self) -> &Transaction {
+        &self.txns
+    }
 }

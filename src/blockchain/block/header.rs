@@ -2,11 +2,7 @@
 //!
 //! block header
 
-use ring::digest::{Context, SHA256};
-use std::{
-    str::FromStr,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::{str::FromStr, time::SystemTime};
 
 /// Blockchain version
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
@@ -59,25 +55,6 @@ impl Header {
             merkle_root_hash,
             created_at,
         }
-    }
-
-    /// Calculate sha256 of header
-    pub fn hash(&self) -> String {
-        let mut context = Context::new(&SHA256);
-        context.update(self.version.to_string().as_bytes());
-        if let Some(hash) = &self.previous_block_header_hash {
-            context.update(hash.as_bytes());
-        }
-        context.update(self.merkle_root_hash.as_bytes());
-        context.update(
-            self.created_at
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_millis()
-                .to_string()
-                .as_bytes(),
-        );
-        hex::encode(context.finish())
     }
 
     /// Get previous block header hash

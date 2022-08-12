@@ -109,7 +109,7 @@ impl Application {
     async fn handle_scheduler_event(&mut self, event: SchedulerEvent) {
         match event {
             SchedulerEvent::MineBlock => {
-                info!("start mining a new block");
+                self.mine_new_block().await;
             }
         }
     }
@@ -133,7 +133,11 @@ impl Application {
     /// code to run on block received
     async fn on_block_received(&mut self, block: Block) {
         let block_index = block.index();
-        info!("received block #{}", block_index);
+        info!(
+            "received block #{} with hash {}",
+            block_index,
+            block.header().merkle_root_hash()
+        );
         if let Err(err) = self.blockchain.add_block(block) {
             error!("could not add block #{}: {}", block_index, err);
         }
@@ -212,5 +216,41 @@ impl Application {
         if let Err(err) = self.node.publish(Msg::request_registered_miners()).await {
             error!("failed to request registered miners: {}", err);
         }
+    }
+
+    /// Mine a new block in the blockchain
+    async fn mine_new_block(&mut self) {
+        self.miners.set_last_block_miner();
+        if self.should_mine_new_block() {
+            info!("start mining a new block");
+            let new_block = match self.blockchain.generate_next_block() {
+                Ok(block) => block,
+                Err(err) => {
+                    error!("could not generate new block: {}", err);
+                    return;
+                }
+            };
+            info!(
+                "generated block #{}, with hash {}",
+                new_block.index(),
+                new_block.header().merkle_root_hash()
+            );
+            // send new block to other peers
+            if let Err(err) = self.node.publish(Msg::block(new_block.clone())).await {
+                error!("failed to send new block to peers: {}", err);
+            }
+            info!(
+                "block #{} successfully broadcasted to peer",
+                new_block.index()
+            );
+        }
+    }
+
+    /// Returns whether host should mine a new block
+    fn should_mine_new_block(&self) -> bool {
+        self.miners
+            .last_block_mined_by()
+            .map(|x| x.id() == self.miners.host().id())
+            .unwrap_or(false)
     }
 }
