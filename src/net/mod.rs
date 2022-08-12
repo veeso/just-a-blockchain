@@ -6,13 +6,14 @@ mod error;
 mod message;
 
 use futures::channel::mpsc::{self, UnboundedReceiver, UnboundedSender};
+pub use libp2p::swarm::SwarmEvent as InnerSwarmEvent;
 use libp2p::{
-    core::upgrade,
+    core::{either::EitherError, upgrade},
     floodsub::{self, Floodsub, FloodsubEvent, Topic},
     identity,
     mdns::{Mdns, MdnsEvent},
     mplex, noise,
-    swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder},
+    swarm::{ConnectionHandlerUpgrErr, NetworkBehaviourEventProcess, Swarm, SwarmBuilder},
     tcp::TokioTcpTransport,
     NetworkBehaviour, PeerId, Transport,
 };
@@ -20,6 +21,9 @@ use libp2p_tcp::GenTcpConfig;
 
 pub use error::{NodeError, NodeResult};
 pub use message::Msg;
+
+pub type SwarmEvent =
+    InnerSwarmEvent<(), EitherError<ConnectionHandlerUpgrErr<std::io::Error>, void::Void>>;
 
 /// Represents the client node in the p2p network
 pub struct Node {

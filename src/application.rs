@@ -4,10 +4,17 @@
 
 use crate::blockchain::{Block, Chain};
 use crate::mining::{Miner, MiningDatabase};
-use crate::net::{Msg, Node};
+use crate::net::{InnerSwarmEvent, Msg, Node, SwarmEvent};
 
 use futures::StreamExt;
 use tokio::time::{interval, Duration, Interval};
+
+/// Application event
+enum AppEvent {
+    Message(Msg),
+    Swarm(SwarmEvent),
+    None,
+}
 
 /// Jab client application
 pub struct Application {
@@ -47,15 +54,12 @@ impl Application {
         info!("listener started");
         // main loop
         loop {
-            let message: Option<Msg> = tokio::select! {
-                event = self.node.swarm.next() => {
-                    debug!("Unhandled Swarm Event: {:?}", event);
-                    None
-                }
+            let event: AppEvent = tokio::select! {
+                event = self.node.swarm.select_next_some() => AppEvent::Swarm(event),
                 message = self.node.event_receiver.next() => {
                     match message {
-                        Some(Ok(message)) => Some(message),
-                        _ => None,
+                        Some(Ok(message)) => AppEvent::Message(message),
+                        _ => AppEvent::None,
                     }
                 }
                 _ = self.poll_interval.tick() => {
@@ -65,11 +69,13 @@ impl Application {
                         self.send_miner_requests().await;
                     }
                     self.poll_interval.reset();
-                    None
+                    AppEvent::None
                 }
             };
-            if let Some(message) = message {
-                self.handle_message(message).await;
+            match event {
+                AppEvent::Message(message) => self.handle_message(message).await,
+                AppEvent::Swarm(event) => self.handle_swarm_event(event).await,
+                AppEvent::None => {}
             }
         }
     }
@@ -88,6 +94,22 @@ impl Application {
             }
             Msg::RequestRegisteredMiners => {
                 self.on_registered_miners_requested().await;
+            }
+        }
+    }
+
+    /// handle incoming event from swarm
+    async fn handle_swarm_event(&mut self, event: SwarmEvent) {
+        match event {
+            InnerSwarmEvent::ConnectionClosed { peer_id, .. } => {
+                info!(
+                    "connection closed with {}; unregistering peer from miners",
+                    peer_id
+                );
+                self.miners.unregister_miner(peer_id);
+            }
+            _ => {
+                debug!("unhandled swarm event: {:?}", event);
             }
         }
     }
@@ -120,7 +142,7 @@ impl Application {
     async fn on_register_miners(&mut self, miners: Vec<Miner>) {
         debug!("received new miners database");
         for miner in miners.into_iter() {
-            self.miners.add_miner(miner);
+            self.miners.register_miner(miner);
         }
     }
 

@@ -22,10 +22,21 @@ impl MiningDatabase {
     }
 
     /// Add miner to miners list
-    pub fn add_miner(&mut self, miner: Miner) {
+    pub fn register_miner(&mut self, miner: Miner) {
         if !self.miner_exists(miner.id()) {
             info!("added new miner {}", miner.id());
             self.miners.push(miner);
+        }
+    }
+
+    /// unregister miner
+    pub fn unregister_miner(&mut self, id: impl ToString) {
+        let id = id.to_string();
+        debug!("unregistering miner {}", id);
+        let index = self.miners.iter().position(|x| *x.id() == id);
+        if let Some(index) = index {
+            self.miners.remove(index);
+            info!("{} unregistered from miners", id);
         }
     }
 
