@@ -47,14 +47,14 @@ impl Application {
         info!("listener started");
         // main loop
         loop {
-            let evt: Option<Msg> = tokio::select! {
+            let message: Option<Msg> = tokio::select! {
                 event = self.node.swarm.next() => {
                     debug!("Unhandled Swarm Event: {:?}", event);
                     None
                 }
-                event = self.node.event_receiver.next() => {
-                    match event {
-                        Some(Ok(event)) => Some(event),
+                message = self.node.event_receiver.next() => {
+                    match message {
+                        Some(Ok(message)) => Some(message),
                         _ => None,
                     }
                 }
@@ -65,21 +65,26 @@ impl Application {
                     None
                 }
             };
-            if let Some(event) = evt {
-                match event {
-                    Msg::Block(block) => {
-                        self.on_block_received(block.block).await;
-                    }
-                    Msg::RequestBlock(block_req) => {
-                        self.on_block_requested(block_req.index).await;
-                    }
-                    Msg::RegisterMiners(miners) => {
-                        self.on_register_miners(miners.miners).await;
-                    }
-                    Msg::RequestRegisteredMiners => {
-                        self.on_registered_miners_requested().await;
-                    }
-                }
+            if let Some(message) = message {
+                self.handle_message(message).await;
+            }
+        }
+    }
+
+    /// handle incoming message from peer
+    async fn handle_message(&mut self, message: Msg) {
+        match message {
+            Msg::Block(block) => {
+                self.on_block_received(block.block).await;
+            }
+            Msg::RequestBlock(block_req) => {
+                self.on_block_requested(block_req.index).await;
+            }
+            Msg::RegisterMiners(miners) => {
+                self.on_register_miners(miners.miners).await;
+            }
+            Msg::RequestRegisteredMiners => {
+                self.on_registered_miners_requested().await;
             }
         }
     }
