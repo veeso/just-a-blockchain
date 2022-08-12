@@ -6,14 +6,21 @@ use crate::blockchain::{Block, Chain};
 use crate::mining::{Miner, MiningDatabase};
 use crate::net::{InnerSwarmEvent, Msg, Node, SwarmEvent};
 
+use futures::channel::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use futures::StreamExt;
 use tokio::time::{interval, Duration, Interval};
+use tokio_cron_scheduler::{Job, JobScheduler};
 
 /// Application event
 enum AppEvent {
     Message(Msg),
     Swarm(SwarmEvent),
+    Scheduler(SchedulerEvent),
     None,
+}
+
+enum SchedulerEvent {
+    MineBlock,
 }
 
 /// Jab client application
@@ -22,6 +29,8 @@ pub struct Application {
     miners: MiningDatabase,
     node: Node,
     poll_interval: Interval,
+    scheduler: JobScheduler,
+    scheduler_receiver: Option<UnboundedReceiver<SchedulerEvent>>,
 }
 
 impl Application {
@@ -38,11 +47,19 @@ impl Application {
             }
         };
         info!("node successfully initialized (id: {})", node.id());
+        let scheduler = match JobScheduler::new().await {
+            Ok(s) => s,
+            Err(err) => {
+                anyhow::bail!("Failed to initialize job scheduler: {}", err.to_string());
+            }
+        };
         Ok(Self {
             blockchain,
             miners: MiningDatabase::new(Miner::new(node.id())),
             node,
             poll_interval: interval(Duration::from_secs(5)),
+            scheduler,
+            scheduler_receiver: None,
         })
     }
 
@@ -52,6 +69,8 @@ impl Application {
             anyhow::bail!("Failed to start listener: {}", err.to_string());
         }
         info!("listener started");
+        // configure scheduler
+        self.setup_scheduler().await?;
         // main loop
         loop {
             let event: AppEvent = tokio::select! {
@@ -61,6 +80,9 @@ impl Application {
                         Some(Ok(message)) => AppEvent::Message(message),
                         _ => AppEvent::None,
                     }
+                }
+                event = self.scheduler_receiver.as_mut().unwrap().select_next_some() => {
+                    AppEvent::Scheduler(event)
                 }
                 _ = self.poll_interval.tick() => {
                     self.on_get_next_block_tick().await;
@@ -74,6 +96,7 @@ impl Application {
             };
             match event {
                 AppEvent::Message(message) => self.handle_message(message).await,
+                AppEvent::Scheduler(event) => self.handle_scheduler_event(event).await,
                 AppEvent::Swarm(event) => self.handle_swarm_event(event).await,
                 AppEvent::None => {}
             }
@@ -94,6 +117,15 @@ impl Application {
             }
             Msg::RequestRegisteredMiners => {
                 self.on_registered_miners_requested().await;
+            }
+        }
+    }
+
+    /// handle incoming event from scheduler
+    async fn handle_scheduler_event(&mut self, event: SchedulerEvent) {
+        match event {
+            SchedulerEvent::MineBlock => {
+                info!("start mining a new block");
             }
         }
     }
@@ -196,5 +228,39 @@ impl Application {
         if let Err(err) = self.node.publish(Msg::request_registered_miners()).await {
             error!("failed to request registered miners: {}", err);
         }
+    }
+
+    /// Setup scheduler
+    async fn setup_scheduler(&mut self) -> anyhow::Result<()> {
+        // setup receiver
+        let (event_sender, event_receiver) = mpsc::unbounded();
+        self.scheduler_receiver = Some(event_receiver);
+        self.setup_mine_block_job(event_sender).await?;
+        if let Err(err) = self.scheduler.start().await {
+            anyhow::bail!("could not start scheduler: {}", err);
+        }
+        Ok(())
+    }
+
+    /// Setup mine block job
+    async fn setup_mine_block_job(
+        &mut self,
+        event_sender: UnboundedSender<SchedulerEvent>,
+    ) -> anyhow::Result<()> {
+        // mine block job
+        let mining_job = match Job::new("30 * * * * *", move |_uuid, _lock| {
+            if let Err(err) = event_sender.unbounded_send(SchedulerEvent::MineBlock) {
+                error!("failed to send to receiver (thread): {}", err);
+            }
+        }) {
+            Ok(j) => j,
+            Err(err) => {
+                anyhow::bail!("could not create MineBlock job: {}", err);
+            }
+        };
+        if let Err(err) = self.scheduler.add(mining_job).await {
+            anyhow::bail!("could not schedule MineBlock job: {}", err);
+        }
+        Ok(())
     }
 }
