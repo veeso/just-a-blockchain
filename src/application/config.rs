@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, Deserialize, Serialize)]
 /// Application config
 pub struct Config {
-    database_dir: PathBuf,
+    database_directory: PathBuf,
 }
 
 impl Config {
@@ -19,7 +19,7 @@ impl Config {
 
     /// Get database directory path
     pub fn database_dir(&self) -> &Path {
-        self.database_dir.as_path()
+        self.database_directory.as_path()
     }
 }
 

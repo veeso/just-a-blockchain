@@ -32,7 +32,10 @@ impl Application {
     pub async fn init(config: Config) -> anyhow::Result<Self> {
         // setup blockchain
         let blockchain = Chain::try_from(config.database_dir())?;
-        info!("blockchain ready!");
+        info!(
+            "blockchain ready! Found {} blocks",
+            blockchain.get_latest_block()?.index()
+        );
         // setup node
         let node = match Node::init().await {
             Ok(node) => node,
