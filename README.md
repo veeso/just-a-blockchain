@@ -35,6 +35,7 @@
 - [just-a-blockchain](#just-a-blockchain)
   - [About just-a-blockchain 💸](#about-just-a-blockchain-)
   - [Features 🎁](#features-)
+  - [Get started 🏁](#get-started-)
   - [Support the developer ☕](#support-the-developer-)
   - [Changelog ⏳](#changelog-)
   - [License 📃](#license-)
@@ -48,6 +49,22 @@ TBD
 ## Features 🎁
 
 TBD
+
+## Get started 🏁
+
+1. Install dependencies
+
+    ```sh
+    sudo apt install -y libleveldb-dev
+    # or on macos
+    brew install leveldb
+    ```
+
+2. Setup environment
+
+    ```sh
+    cp .env.{PROFILE} .env
+    ```
 
 ---
 

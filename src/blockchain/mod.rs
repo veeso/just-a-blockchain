@@ -4,72 +4,86 @@
 
 // -- modules
 mod block;
+mod database;
+mod errors;
 mod merkle;
-
-use std::time::{SystemTime, UNIX_EPOCH};
-use thiserror::Error;
 
 use self::merkle::JabMerkleTree;
 pub use block::{Block, Header, Transaction, Version};
+use database::BlockchainDatabase;
+pub use errors::{BlockchainError, BlockchainResult};
 
-/// Blockchain result type
-pub type BlockchainResult<T> = Result<T, BlockchainError>;
-
-#[derive(Debug, Error)]
-pub enum BlockchainError {
-    #[error("the block is invalid")]
-    InvalidBlock,
-}
+use std::path::Path;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// The main blockchain struct, contains the entire blockchain and the methods to interact with it
-#[derive(Debug)]
 pub struct Chain {
-    /// the entire blocks which composes the blockchain
-    blockchain: Vec<Block>,
+    /// the database which stores the blockchain
+    blockchain: BlockchainDatabase,
+}
+
+impl TryFrom<&Path> for Chain {
+    type Error = BlockchainError;
+    fn try_from(path: &Path) -> Result<Self, Self::Error> {
+        // setup database
+        let database = BlockchainDatabase::try_from(path)?;
+        debug!("leveldb successfully initialized");
+        // initialize database if genesis block doesn't exist
+        if database.get_block(0)?.is_none() {
+            debug!("database doesn't contain the genesis block yet; generating genesis block...");
+            database.put_block(&Self::genesis_block())?;
+            debug!("generated genesis block");
+        }
+        Ok(Self {
+            blockchain: database,
+        })
+    }
 }
 
 impl Chain {
-    /// Initialize a new blockchain from scratch
-    pub fn new() -> Self {
-        Self {
-            blockchain: vec![Self::genesis_block()],
-        }
-    }
-
     /// Get genesis block (first block in the blockchain)
-    pub fn get_genesis_block(&self) -> &Block {
-        self.blockchain.get(0).unwrap()
+    pub fn get_genesis_block(&self) -> BlockchainResult<Block> {
+        self.blockchain.get_block(0).map(|x| x.unwrap())
     }
 
     /// Push new block to the end of the blockchain
     pub fn add_block(&mut self, b: Block) -> BlockchainResult<()> {
-        let previous_block = self.get_latest_block();
+        let previous_block = self.get_latest_block()?;
         if previous_block.index() < b.index()
             && b.header().previous_block_header_hash()
                 == Some(previous_block.header().merkle_root_hash())
         {
-            self.blockchain.push(b);
-            Ok(())
+            self.blockchain.put_block(&b)
         } else {
             Err(BlockchainError::InvalidBlock)
         }
     }
 
     /// Get block at `index`
-    pub fn get_block(&self, index: u64) -> Option<&Block> {
-        self.blockchain.get(index as usize)
+    pub fn get_block(&self, index: u64) -> BlockchainResult<Option<Block>> {
+        self.blockchain.get_block(index)
     }
 
     /// Get latest block. Unwrap is safe, since blockchain cannot be empty
-    pub fn get_latest_block(&self) -> &Block {
-        self.blockchain.last().unwrap()
+    pub fn get_latest_block(&self) -> BlockchainResult<Block> {
+        let mut index = 1;
+        let mut block = self.get_genesis_block()?;
+        loop {
+            // if next block exists, update block and keep iterating; otherwise return last block `block`
+            match self.get_block(index)? {
+                None => break,
+                Some(b) => block = b,
+            }
+            index += 1;
+        }
+        Ok(block)
     }
 
     /// Generate the next block in the blockchain
-    pub fn generate_next_block(&mut self) -> BlockchainResult<&Block> {
-        let previous_block = self.get_latest_block();
+    pub fn generate_next_block(&mut self) -> BlockchainResult<Block> {
+        let previous_block = self.get_latest_block()?;
         let next_index = previous_block.index() + 1;
-        let next_merkle_root = self.calc_merkle_root_hash();
+        let next_merkle_root = self.calc_merkle_root_hash()?;
 
         // generate new block
         let new_block = Block::new(
@@ -84,7 +98,9 @@ impl Chain {
                 dummy: String::from("dummy"), // TODO: add real transaction
             },
         );
-        self.add_block(new_block).map(|_| self.get_latest_block())
+        // add block and return latest block
+        self.add_block(new_block)?;
+        self.get_latest_block()
     }
 
     #[inline]
@@ -101,13 +117,14 @@ impl Chain {
     }
 
     /// Calculate the merkle root hash from all the transactions in the blockchain
-    fn calc_merkle_root_hash(&self) -> String {
-        let transactions: Vec<Transaction> = self
-            .blockchain
-            .iter()
-            .map(|x| x.transaction().clone())
-            .collect();
+    fn calc_merkle_root_hash(&self) -> BlockchainResult<String> {
+        let mut transactions: Vec<Transaction> = Vec::new();
+        let mut index = 0;
+        while let Some(block) = self.get_block(index)? {
+            transactions.push(block.transaction().clone());
+            index += 1;
+        }
         let tree = JabMerkleTree::new(transactions);
-        tree.root_hash()
+        Ok(tree.root_hash())
     }
 }

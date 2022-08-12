@@ -9,15 +9,22 @@ extern crate tracing;
 // -- modules
 mod application;
 mod blockchain;
+mod bridge;
 mod mining;
 mod net;
 
-use application::Application;
+use application::{Application, Config as AppConfig};
+use dotenv::dotenv;
+use std::env;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    dotenv().ok();
     tracing_subscriber::fmt::init();
     info!("jab {} - developed by {}", JAB_VERSION, JAB_AUTHORS);
-    let application = Application::init().await?;
+    let config = AppConfig::try_from_env()?;
+    info!("configuration successfully loaded");
+    let application = Application::init(config).await?;
+    info!("application ready!");
     application.run().await
 }

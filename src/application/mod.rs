@@ -3,8 +3,11 @@
 //! the application module is the core of the jab client
 
 // -- modules
+mod config;
 mod event;
 mod scheduler;
+
+pub use config::Config;
 
 use crate::blockchain::{Block, Chain};
 use crate::mining::{Miner, MiningDatabase};
@@ -26,9 +29,9 @@ pub struct Application {
 
 impl Application {
     /// Initialize new `Application`
-    pub async fn init() -> anyhow::Result<Self> {
+    pub async fn init(config: Config) -> anyhow::Result<Self> {
         // setup blockchain
-        let blockchain = Chain::new();
+        let blockchain = Chain::try_from(config.database_dir())?;
         info!("blockchain ready!");
         // setup node
         let node = match Node::init().await {
@@ -148,13 +151,22 @@ impl Application {
     /// code to run on block requested
     async fn on_block_requested(&mut self, requested_block: u64) {
         debug!("got a request for block #{}", requested_block);
-        if let Some(block) = self.blockchain.get_block(requested_block) {
-            debug!("sending block #{}", requested_block);
-            if let Err(err) = self.node.publish(Msg::block(block.clone())).await {
-                error!("could not send `Block` message: {}", err);
+        match self.blockchain.get_block(requested_block) {
+            Err(err) => {
+                error!(
+                    "can't retrieve block #{} from database: {}",
+                    requested_block, err
+                );
             }
-        } else {
-            debug!("we don't currently have block #{}", requested_block);
+            Ok(None) => {
+                debug!("we don't currently have block #{}", requested_block);
+            }
+            Ok(Some(block)) => {
+                debug!("sending block #{}", requested_block);
+                if let Err(err) = self.node.publish(Msg::block(block.clone())).await {
+                    error!("could not send `Block` message: {}", err);
+                }
+            }
         }
     }
 
@@ -187,7 +199,13 @@ impl Application {
 
     /// get next block from other peer through a request
     async fn get_next_block(&mut self) {
-        let next_index = self.blockchain.get_latest_block().index() + 1;
+        let next_index = match self.blockchain.get_latest_block() {
+            Ok(block) => block.index() + 1,
+            Err(err) => {
+                error!("could not get the latest block: {}", err);
+                return;
+            }
+        };
         match self.node.publish(Msg::request_block(next_index)).await {
             Ok(()) => {
                 debug!("requested block #{}", next_index);

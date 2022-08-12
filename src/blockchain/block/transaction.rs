@@ -15,3 +15,12 @@ impl Hashable for Transaction {
         context.update(self.dummy.as_bytes())
     }
 }
+
+#[cfg(test)]
+impl Default for Transaction {
+    fn default() -> Self {
+        Self {
+            dummy: String::from("cafebabe"),
+        }
+    }
+}
