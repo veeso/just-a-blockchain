@@ -60,7 +60,10 @@ impl Application {
                 }
                 _ = self.poll_interval.tick() => {
                     self.on_get_next_block_tick().await;
-                    self.send_miner_requests().await;
+                    // if currently there's only one known miner (which is us), send requests for discovering miners
+                    if self.miners.miners().len() == 1 {
+                        self.send_miner_requests().await;
+                    }
                     self.poll_interval.reset();
                     None
                 }
