@@ -12,7 +12,7 @@ use block::Block;
 use miners::RegisteredMiners;
 use request_block::RequestBlock;
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 #[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Msg {
     /// A message to request block with provided index

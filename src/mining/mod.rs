@@ -56,7 +56,7 @@ impl MiningDatabase {
 }
 
 // Describe a miner in the network
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct Miner {
     id: String,
 }

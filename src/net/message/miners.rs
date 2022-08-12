@@ -4,7 +4,7 @@
 
 use crate::mining::Miner;
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct RegisteredMiners {
     pub miners: Vec<Miner>,
 }

@@ -4,7 +4,7 @@
 
 use crate::blockchain::Block as ChainBlock;
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct Block {
     pub block: ChainBlock,
 }

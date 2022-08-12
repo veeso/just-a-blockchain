@@ -9,7 +9,7 @@ use std::{
 };
 
 /// Blockchain version
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum Version {
     V010,
 }
@@ -33,7 +33,7 @@ impl ToString for Version {
 }
 
 /// Blockchain header
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct Header {
     /// blockchain version
     version: Version,

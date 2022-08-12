@@ -2,7 +2,7 @@
 //!
 //! This module expose the REQUEST_BLOCK message type
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct RequestBlock {
     pub index: u64,
 }
