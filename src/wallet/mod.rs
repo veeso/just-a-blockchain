@@ -7,6 +7,9 @@ mod errors;
 pub use errors::WalletError;
 use errors::WalletResult;
 
+use data_encoding::HEXLOWER;
+use ring::digest::{Context, SHA256};
+use ripemd::{Digest, Ripemd160};
 use secp256k1::{
     constants::SECRET_KEY_SIZE, ecdsa::Signature, rand::rngs::OsRng, Message, PublicKey, Secp256k1,
     SecretKey,
@@ -15,8 +18,18 @@ use std::str::FromStr;
 
 /// Jab wallet type
 pub struct Wallet {
+    /// The wallet address corresponds to RIPEMD160(SHA256(public_key))
+    address: String,
+    /// Wallet public key
     public_key: PublicKey,
+    /// Wallet secret key (DON'T SHARE WITH ANYBODY)
     secret_key: SecretKey,
+}
+
+impl Default for Wallet {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Wallet {
@@ -25,6 +38,7 @@ impl Wallet {
         let secp = Secp256k1::new();
         let (secret_key, public_key) = secp.generate_keypair(&mut OsRng);
         Self {
+            address: Self::calc_address(&public_key),
             public_key,
             secret_key,
         }
@@ -38,6 +52,11 @@ impl Wallet {
     /// Get secret key
     pub fn secret_key(&self) -> [u8; SECRET_KEY_SIZE] {
         self.secret_key.secret_bytes()
+    }
+
+    /// Return wallet address
+    pub fn address(&self) -> &str {
+        &self.address
     }
 
     /// Verify whether provided message has actually been signed with this key
@@ -56,6 +75,19 @@ impl Wallet {
         let message = Message::from_slice(message)?;
         Ok(secp.sign_ecdsa(&message, &self.secret_key).to_string())
     }
+
+    /// Calculate the wallet address
+    ///
+    /// The address format is `jab{RIPEMD160(SHA256(pubkey))}`
+    fn calc_address(pubkey: &PublicKey) -> String {
+        let mut digest_ctx = Context::new(&SHA256);
+        digest_ctx.update(pubkey.to_string().as_bytes());
+        let sha256 = digest_ctx.finish();
+        let mut ripe_hasher = Ripemd160::new();
+        ripe_hasher.update(sha256);
+        let result = ripe_hasher.finalize();
+        format!("jab{}", HEXLOWER.encode(&result))
+    }
 }
 
 impl TryFrom<&[u8]> for Wallet {
@@ -66,6 +98,7 @@ impl TryFrom<&[u8]> for Wallet {
         let secp = Secp256k1::new();
         let public_key = PublicKey::from_secret_key(&secp, &secret_key);
         Ok(Self {
+            address: Self::calc_address(&public_key),
             public_key,
             secret_key,
         })
@@ -84,6 +117,7 @@ mod test {
         let wallet = Wallet::new();
         let signature = wallet.sign(&[0xab; 32]).unwrap();
         assert_eq!(wallet.verify(&[0xab; 32], &signature).unwrap(), true);
+        assert!(wallet.address().starts_with("jab"));
     }
 
     #[test]

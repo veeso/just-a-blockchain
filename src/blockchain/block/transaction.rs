@@ -5,6 +5,7 @@
 use merkle::Hashable;
 use ring::digest::Context;
 
+/// The transaction, defines all the information exchanged in a transaction in the blockchain
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct Transaction {
     pub dummy: String,
