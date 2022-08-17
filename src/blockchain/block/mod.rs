@@ -6,7 +6,7 @@ mod header;
 mod transaction;
 
 pub use header::{Header, Version};
-pub use transaction::Transaction;
+pub use transaction::{Transaction, TransactionBuilder, TransactionVersion};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct Block {

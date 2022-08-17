@@ -10,10 +10,8 @@ use errors::WalletResult;
 use data_encoding::HEXLOWER;
 use ring::digest::{Context, SHA256};
 use ripemd::{Digest, Ripemd160};
-use secp256k1::{
-    constants::SECRET_KEY_SIZE, ecdsa::Signature, rand::rngs::OsRng, Message, PublicKey, Secp256k1,
-    SecretKey,
-};
+pub use secp256k1::constants::SECRET_KEY_SIZE;
+use secp256k1::{ecdsa::Signature, rand::rngs::OsRng, Message, PublicKey, Secp256k1, SecretKey};
 use std::str::FromStr;
 
 /// Jab wallet type
@@ -60,13 +58,12 @@ impl Wallet {
     }
 
     /// Verify whether provided message has actually been signed with this key
-    pub fn verify(&self, message: &[u8], signature: &str) -> WalletResult<bool> {
+    pub fn verify(message: &[u8], signature: &str, pubkey: &str) -> WalletResult<bool> {
+        let pubkey = PublicKey::from_str(pubkey)?;
         let secp = Secp256k1::new();
         let message = Message::from_slice(message)?;
         let signature = Signature::from_str(signature)?;
-        Ok(secp
-            .verify_ecdsa(&message, &signature, &self.public_key)
-            .is_ok())
+        Ok(secp.verify_ecdsa(&message, &signature, &pubkey).is_ok())
     }
 
     /// Sign message
@@ -116,7 +113,10 @@ mod test {
     fn should_generate_valid_wallet_keys() {
         let wallet = Wallet::new();
         let signature = wallet.sign(&[0xab; 32]).unwrap();
-        assert_eq!(wallet.verify(&[0xab; 32], &signature).unwrap(), true);
+        assert_eq!(
+            Wallet::verify(&[0xab; 32], &signature, &wallet.public_key()).unwrap(),
+            true
+        );
         assert!(wallet.address().starts_with("jab"));
     }
 
@@ -126,7 +126,10 @@ mod test {
         let signature = wallet.sign(&[0xab; 32]).unwrap();
 
         let other_wallet = Wallet::new();
-        assert_eq!(other_wallet.verify(&[0xab; 32], &signature).unwrap(), false);
+        assert_eq!(
+            Wallet::verify(&[0xab; 32], &signature, &other_wallet.public_key()).unwrap(),
+            false
+        );
     }
 
     #[test]

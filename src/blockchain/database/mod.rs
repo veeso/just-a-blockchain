@@ -57,9 +57,10 @@ impl BlockchainDatabase {
 mod test {
 
     use super::*;
-    use crate::blockchain::{Header, Transaction, Version};
+    use crate::blockchain::{Header, TransactionBuilder, Version};
 
     use pretty_assertions::assert_eq;
+    use rust_decimal_macros::dec;
     use std::time::SystemTime;
     use tempfile::TempDir;
 
@@ -78,7 +79,12 @@ mod test {
                 String::from("cafebabe"),
                 SystemTime::now(),
             ),
-            Transaction::default(),
+            TransactionBuilder::new(crate::blockchain::TransactionVersion::V1)
+                .input("alice", dec!(6.0))
+                .input("alice", dec!(4.52))
+                .output("bob", dec!(10.50))
+                .output("miner", dec!(0.02))
+                .finish("aaa"),
         );
         assert!(database.put_block(&block).is_ok());
         // get block
