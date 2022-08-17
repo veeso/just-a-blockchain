@@ -39,7 +39,7 @@ impl TransactionBuilder {
     }
 
     /// Finish builder with signature
-    pub fn finish(mut self, signature: impl ToString) -> Transaction {
+    pub fn finish(self, signature: impl ToString) -> Transaction {
         Transaction::new(
             self.version,
             self.inputs,

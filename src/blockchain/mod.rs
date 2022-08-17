@@ -85,7 +85,7 @@ impl Chain {
     }
 
     /// Generate the next block in the blockchain
-    pub fn generate_next_block(&mut self) -> BlockchainResult<Block> {
+    pub fn generate_next_block(&mut self, transaction: Transaction) -> BlockchainResult<Block> {
         let previous_block = self.get_latest_block()?;
         let next_index = previous_block.index() + 1;
         let next_merkle_root = self.calc_merkle_root_hash()?;
@@ -99,7 +99,7 @@ impl Chain {
                 next_merkle_root,
                 SystemTime::now(),
             ),
-            todo!("add transaction"),
+            transaction,
         );
         // add block and return latest block
         self.add_block(new_block)?;

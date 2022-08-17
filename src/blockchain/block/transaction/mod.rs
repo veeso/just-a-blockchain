@@ -148,7 +148,7 @@ mod test {
             .output("miner", dec!(0.02))
             .finish("aaa");
         assert_eq!(transaction.amount_received("alice"), Decimal::ZERO);
-        assert_eq!(transaction.amount_spent("bob"), dec!(10.50));
-        assert_eq!(transaction.amount_spent("miner"), dec!(0.02));
+        assert_eq!(transaction.amount_received("bob"), dec!(10.50));
+        assert_eq!(transaction.amount_received("miner"), dec!(0.02));
     }
 }

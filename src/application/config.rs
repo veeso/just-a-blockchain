@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 /// Application config
 pub struct Config {
     database_directory: PathBuf,
+    wallet_secret_key: PathBuf,
 }
 
 impl Config {
@@ -21,6 +22,11 @@ impl Config {
     pub fn database_dir(&self) -> &Path {
         self.database_directory.as_path()
     }
+
+    /// Get wallet directory
+    pub fn wallet_secret_key(&self) -> &Path {
+        &self.wallet_secret_key
+    }
 }
 
 #[cfg(test)]
@@ -33,5 +39,6 @@ mod test {
         dotenv::from_filename(Path::new(".env.devel")).ok();
         let config = Config::try_from_env().unwrap();
         assert_eq!(config.database_dir(), Path::new("./db"));
+        assert_eq!(config.wallet_secret_key(), Path::new("wallet.key"));
     }
 }

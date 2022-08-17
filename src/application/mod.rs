@@ -5,15 +5,16 @@
 // -- modules
 mod config;
 mod event;
-mod scheduler;
+mod wallet_helper;
 
 pub use config::Config;
 
 use crate::blockchain::{Block, Chain};
 use crate::mining::{Miner, MiningDatabase};
 use crate::net::{InnerSwarmEvent, Msg, Node, SwarmEvent};
-use event::{AppEvent, SchedulerEvent};
-use scheduler::Scheduler;
+use crate::wallet::Wallet;
+use event::AppEvent;
+use wallet_helper::WalletHelper;
 
 use futures::StreamExt;
 use tokio::time::{interval, Duration, Interval};
@@ -24,7 +25,7 @@ pub struct Application {
     miners: MiningDatabase,
     node: Node,
     poll_interval: Interval,
-    scheduler: Scheduler,
+    wallet: Wallet,
 }
 
 impl Application {
@@ -49,7 +50,7 @@ impl Application {
             miners: MiningDatabase::new(Miner::new(node.id())),
             node,
             poll_interval: interval(Duration::from_secs(5)),
-            scheduler: Scheduler::new().await?,
+            wallet: WalletHelper::open_or_create_wallet(config.wallet_secret_key()).await?,
         })
     }
 
@@ -59,8 +60,6 @@ impl Application {
             anyhow::bail!("Failed to start listener: {}", err.to_string());
         }
         info!("listener started");
-        // configure scheduler
-        self.scheduler.configure().await?;
         // main loop
         loop {
             let event: AppEvent = tokio::select! {
@@ -70,9 +69,6 @@ impl Application {
                         Some(Ok(message)) => AppEvent::Message(message),
                         _ => AppEvent::None,
                     }
-                }
-                event = self.scheduler.select_next_some() => {
-                    AppEvent::Scheduler(event)
                 }
                 _ = self.poll_interval.tick() => {
                     self.on_get_next_block_tick().await;
@@ -86,7 +82,6 @@ impl Application {
             };
             match event {
                 AppEvent::Message(message) => self.handle_message(message).await,
-                AppEvent::Scheduler(event) => self.handle_scheduler_event(event).await,
                 AppEvent::Swarm(event) => self.handle_swarm_event(event).await,
                 AppEvent::None => {}
             }
@@ -107,15 +102,6 @@ impl Application {
             }
             Msg::RequestRegisteredMiners => {
                 self.on_registered_miners_requested().await;
-            }
-        }
-    }
-
-    /// handle incoming event from scheduler
-    async fn handle_scheduler_event(&mut self, event: SchedulerEvent) {
-        match event {
-            SchedulerEvent::MineBlock => {
-                self.mine_new_block().await;
             }
         }
     }
@@ -242,36 +228,29 @@ impl Application {
     /// Mine a new block in the blockchain
     async fn mine_new_block(&mut self) {
         self.miners.set_last_block_miner();
-        if self.should_mine_new_block() {
-            info!("start mining a new block");
-            let new_block = match self.blockchain.generate_next_block() {
-                Ok(block) => block,
-                Err(err) => {
-                    error!("could not generate new block: {}", err);
-                    return;
-                }
-            };
-            info!(
-                "generated block #{}, with hash {}",
-                new_block.index(),
-                new_block.header().merkle_root_hash()
-            );
-            // send new block to other peers
-            if let Err(err) = self.node.publish(Msg::block(new_block.clone())).await {
-                error!("failed to send new block to peers: {}", err);
+        // TODO: new function to generate blocks
+        /*
+        info!("start mining a new block");
+        let new_block = match self.blockchain.generate_next_block() {
+            Ok(block) => block,
+            Err(err) => {
+                error!("could not generate new block: {}", err);
+                return;
             }
-            info!(
-                "block #{} successfully broadcasted to peer",
-                new_block.index()
-            );
+        };
+        info!(
+            "generated block #{}, with hash {}",
+            new_block.index(),
+            new_block.header().merkle_root_hash()
+        );
+        // send new block to other peers
+        if let Err(err) = self.node.publish(Msg::block(new_block.clone())).await {
+            error!("failed to send new block to peers: {}", err);
         }
-    }
-
-    /// Returns whether host should mine a new block
-    fn should_mine_new_block(&self) -> bool {
-        self.miners
-            .last_block_mined_by()
-            .map(|x| x.id() == self.miners.host().id())
-            .unwrap_or(false)
+        info!(
+            "block #{} successfully broadcasted to peer",
+            new_block.index()
+        );
+        */
     }
 }
