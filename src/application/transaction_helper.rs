@@ -55,28 +55,27 @@ impl TransactionHelper {
         blockchain: &Chain,
     ) -> Result<Transaction, TransactionRejected> {
         // Prevent negative amount
+        debug!("checking wallet amount...");
         if opts.amount < Decimal::ZERO {
             return Err(TransactionRejected::InsufficientBalance);
         }
         Self::check_wallet_amount(&opts.input_address, opts.amount, blockchain)?;
-        Self::check_output(&opts.output_address, blockchain)?;
+        debug!("checking whether output address exists");
+        Self::check_output(&opts.output_address, &opts.input_address, blockchain)?;
         // Calculate output amount; if amount is ZERO, keep zero (wallet creation)
-        let output_amount = if opts.amount == Decimal::ZERO {
-            Decimal::ZERO
-        } else {
-            opts.amount - opts.fee
-        };
         // make transaction
+        debug!("making transaction");
         let transaction = TransactionBuilder::new(TransactionVersion::V1)
             .input(&opts.input_address, opts.amount)
-            .output(&opts.output_address, output_amount)
+            .output(&opts.output_address, opts.amount)
             .output(wallet.address(), opts.fee)
             .finish(&opts.signature);
         // verify transaction signature
-        Self::check_transaction_signature(&transaction, opts.signature.as_str())?;
+        debug!("checking transaction signature");
+        Self::check_transaction_signature(&transaction, opts.public_key.as_str())?;
         debug!(
-            "transferring {} ({}) from {} to {} (fee: {})",
-            output_amount, opts.amount, opts.input_address, opts.output_address, opts.fee
+            "transferring {} from {} to {} (fee: {})",
+            opts.amount, opts.input_address, opts.output_address, opts.fee
         );
         Ok(transaction)
     }
@@ -92,12 +91,20 @@ impl TransactionHelper {
                 Err(TransactionRejected::InsufficientBalance)
             }
             Ok(Some(_)) => Ok(()),
-            Ok(None) => Err(TransactionRejected::InputWalletNotFound),
+            Ok(None) if amount > Decimal::ZERO => Err(TransactionRejected::InputWalletNotFound),
+            Ok(None) => Ok(()),
             Err(err) => Err(TransactionRejected::BlockchainError(err)),
         }
     }
 
-    fn check_output(addr: &str, blockchain: &Chain) -> Result<(), TransactionRejected> {
+    fn check_output(
+        addr: &str,
+        input_addr: &str,
+        blockchain: &Chain,
+    ) -> Result<(), TransactionRejected> {
+        if input_addr == addr {
+            return Ok(());
+        }
         match blockchain.wallet_exists(addr) {
             Ok(true) => Ok(()),
             Ok(false) => Err(TransactionRejected::OutputWalletNotFound),

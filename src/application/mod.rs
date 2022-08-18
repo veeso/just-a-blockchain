@@ -41,7 +41,7 @@ impl Application {
         let blockchain = Chain::try_from(config.database_dir())?;
         info!(
             "blockchain ready! Found {} blocks",
-            blockchain.get_latest_block()?.index()
+            blockchain.get_latest_block()?.index() + 1
         );
         // setup node
         let node = match Node::init().await {
@@ -199,6 +199,19 @@ impl Application {
     /// Function to handle a `WalletDetails` query
     async fn on_wallet_details_query(&mut self, query: WalletQuery) {
         debug!("received wallet query for {}", query.address);
+        let balance = match self.blockchain.wallet_amount(&query.address) {
+            Ok(Some(balance)) => balance,
+            Ok(None) => {
+                self.send_wallet_details_error(&query.peer_id, WalletQueryError::WalletNotFound)
+                    .await;
+                return;
+            }
+            Err(_) => {
+                self.send_wallet_details_error(&query.peer_id, WalletQueryError::BlockchainError)
+                    .await;
+                return;
+            }
+        };
         // collect transactions
         match self.blockchain.wallet_transactions(&query.address) {
             Err(_) => {
@@ -211,11 +224,6 @@ impl Application {
             }
             Ok(Some(transactions)) => {
                 // calc wallet balance
-                let mut balance = Decimal::ZERO;
-                for transaction in transactions.iter() {
-                    balance -= transaction.amount_spent(&query.address);
-                    balance += transaction.amount_received(&query.address);
-                }
                 debug!(
                     "found {} transactions for wallet {}; current amount {} JAB",
                     transactions.len(),
@@ -289,7 +297,7 @@ impl Application {
                 transaction_msg.output_address,
             )
             .amount(transaction_msg.amount)
-            .fee(rust_decimal_macros::dec!(0.02))
+            .fee(rust_decimal_macros::dec!(20.0))
             .signature(transaction_msg.signature)
             .public_key(transaction_msg.public_key),
             &self.wallet,

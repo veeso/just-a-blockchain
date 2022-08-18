@@ -112,11 +112,21 @@ impl Chain {
         let mut wallet_amount = Decimal::ZERO;
         let mut wallet_found = false;
         while let Some(block) = self.get_block(index)? {
-            if block.transaction().input_address() == Some(addr) {
-                // sum received money and sub spent money
-                wallet_amount += block.transaction().amount_received(addr);
-                wallet_amount -= block.transaction().amount_spent(addr);
-                wallet_found = true;
+            let mut already_checked = false;
+            wallet_amount += block.transaction().amount_received(addr);
+            wallet_amount += block.transaction().amount_spent(addr);
+            for input in block.transaction().inputs() {
+                if input.address.as_str() == addr {
+                    wallet_found = true;
+                    already_checked = true;
+                }
+            }
+            if !already_checked {
+                for output in block.transaction().outputs() {
+                    if output.address.as_str() == addr {
+                        wallet_found = true;
+                    }
+                }
             }
             index += 1;
         }
@@ -133,9 +143,21 @@ impl Chain {
         let mut wallet_transactions = Vec::new();
         let mut wallet_found = false;
         while let Some(block) = self.get_block(index)? {
-            if block.transaction().input_address() == Some(addr) {
-                wallet_transactions.push(block.transaction().to_owned());
-                wallet_found = true;
+            let mut already_pushed = false;
+            for input in block.transaction().inputs() {
+                if input.address.as_str() == addr {
+                    wallet_transactions.push(block.transaction().to_owned());
+                    wallet_found = true;
+                    already_pushed = true;
+                }
+            }
+            if !already_pushed {
+                for output in block.transaction().outputs() {
+                    if output.address.as_str() == addr {
+                        wallet_transactions.push(block.transaction().to_owned());
+                        wallet_found = true;
+                    }
+                }
             }
             index += 1;
         }
@@ -150,8 +172,15 @@ impl Chain {
     pub fn wallet_exists(&self, addr: &str) -> BlockchainResult<bool> {
         let mut index = 0;
         while let Some(block) = self.get_block(index)? {
-            if block.transaction().input_address() == Some(addr) {
-                return Ok(true);
+            for input in block.transaction().inputs() {
+                if input.address.as_str() == addr {
+                    return Ok(true);
+                }
+            }
+            for output in block.transaction().outputs() {
+                if output.address.as_str() == addr {
+                    return Ok(true);
+                }
             }
             index += 1;
         }

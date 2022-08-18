@@ -63,6 +63,14 @@ impl Transaction {
         self
     }
 
+    pub fn inputs(&self) -> &[UnlockInput] {
+        &self.inputs
+    }
+
+    pub fn outputs(&self) -> &[LockOutput] {
+        &self.outputs
+    }
+
     /// Get the transaction signature
     pub fn signature(&self) -> &str {
         &self.signature
@@ -104,10 +112,10 @@ impl Transaction {
 impl Hashable for Transaction {
     fn update_context(&self, context: &mut Context) {
         context.update(&[self.version as u8]);
-        for input in &self.inputs {
+        if let Some(input) = self.inputs.get(0) {
             input.update_context(context);
         }
-        for output in &self.outputs {
+        if let Some(output) = self.outputs.get(0) {
             output.update_context(context);
         }
     }

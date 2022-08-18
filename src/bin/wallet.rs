@@ -24,7 +24,7 @@ pub struct Args {
     pub get_balance_for: Option<String>,
     #[argh(switch, short = 'g', description = "generate a new wallet")]
     pub generate_wallet: bool,
-    #[argh(switch, description = "send money")]
+    #[argh(switch, short = 's', description = "send money")]
     pub send: bool,
     #[argh(switch, description = "sign genesis block")]
     pub sign_genesis_block: bool,
@@ -50,8 +50,10 @@ impl From<&Args> for Task {
     }
 }
 
-fn main() -> anyhow::Result<()> {
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
     let args: Args = argh::from_env();
     let task = Task::from(&args);
-    App::run(task, args)
+    tracing_subscriber::fmt::init();
+    App::run(task, args).await
 }

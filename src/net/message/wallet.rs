@@ -61,7 +61,7 @@ pub struct WalletTransactions {
 }
 
 #[derive(Error, Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+#[serde(tag = "error", rename_all = "SCREAMING_SNAKE_CASE")]
 /// Error type for query error
 pub enum WalletQueryError {
     #[error("blockchain error")]
