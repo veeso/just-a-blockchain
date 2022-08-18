@@ -11,6 +11,7 @@ name = "jab"
 readme = "README.md"
 repository = "https://github.com/veeso/just-a-blockchain"
 version = "0.1.0"
+default-run = "jab"
 
 [[bin]]
 name = "jab"

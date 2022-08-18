@@ -2,7 +2,7 @@
 //!
 //! An helper to create or initialize an existing wallet
 
-use crate::wallet::{Wallet, SECRET_KEY_SIZE};
+use jab::wallet::{Wallet, SECRET_KEY_SIZE};
 use std::path::Path;
 use tokio::{fs::OpenOptions, io::AsyncReadExt};
 
@@ -24,7 +24,7 @@ impl WalletHelper {
                     )
                 })?;
             let mut buffer = vec![0; SECRET_KEY_SIZE];
-            secret_key.read_buf(&mut buffer).await.map_err(|e| {
+            secret_key.read_exact(&mut buffer).await.map_err(|e| {
                 anyhow::anyhow!(
                     "failed to read secret key from {}: {}",
                     secret_key_path.display(),

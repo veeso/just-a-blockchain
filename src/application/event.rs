@@ -2,7 +2,7 @@
 //!
 //! Contains application events
 
-use crate::net::{Msg, SwarmEvent};
+use jab::net::{Msg, SwarmEvent};
 
 /// Application event
 #[derive(Debug)]

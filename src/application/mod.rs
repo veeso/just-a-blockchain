@@ -11,14 +11,14 @@ mod wallet_helper;
 pub use config::Config;
 use rust_decimal::Decimal;
 
-use crate::blockchain::{Block, Chain, Transaction};
-use crate::mining::{Miner, MiningDatabase};
-use crate::net::{
+use event::AppEvent;
+use jab::blockchain::{Block, Chain, Transaction};
+use jab::mining::{Miner, MiningDatabase};
+use jab::net::{
     message::{Transaction as MsgTransaction, WalletQuery, WalletQueryError},
     InnerSwarmEvent, Msg, Node, SwarmEvent,
 };
-use crate::wallet::Wallet;
-use event::AppEvent;
+use jab::wallet::Wallet;
 use transaction_helper::{TransactionHelper, TransactionOptions, TransactionRejected};
 use wallet_helper::WalletHelper;
 

@@ -2,11 +2,11 @@
 //!
 //! An helper to commit transactions
 
-use crate::blockchain::{
+use jab::blockchain::{
     BlockchainError, Chain, Transaction, TransactionBuilder, TransactionVersion,
 };
-use crate::net::message::TransactionErrorCode;
-use crate::wallet::{Wallet, WalletError};
+use jab::net::message::TransactionErrorCode;
+use jab::wallet::{Wallet, WalletError};
 
 use merkle::Hashable;
 use ring::digest::{Context, SHA256};
