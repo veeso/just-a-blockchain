@@ -56,7 +56,7 @@ impl Application {
             miners: MiningDatabase::new(Miner::new(node.id())),
             node,
             poll_interval: interval(Duration::from_secs(5)),
-            wallet: WalletHelper::open_or_create_wallet(config.wallet_secret_key()).await?,
+            wallet: WalletHelper::open_wallet(config.wallet_secret_key()).await?,
         })
     }
 
