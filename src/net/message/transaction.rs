@@ -46,8 +46,8 @@ impl Transaction {
 /// Transaction result payload. Used to report a transaction result
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct TransactionResult {
-    status: TransactionStatus,
-    error: Option<TransactionError>,
+    pub status: TransactionStatus,
+    pub error: Option<TransactionError>,
 }
 
 impl TransactionResult {
@@ -65,10 +65,11 @@ pub enum TransactionStatus {
 }
 
 /// Transaction error
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+#[derive(Error, Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+#[error("{code}: {description}")]
 pub struct TransactionError {
-    code: TransactionErrorCode,
-    description: String,
+    pub code: TransactionErrorCode,
+    pub description: String,
 }
 
 impl TransactionError {

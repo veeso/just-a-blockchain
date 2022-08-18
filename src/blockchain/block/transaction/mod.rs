@@ -73,6 +73,11 @@ impl Transaction {
         self.inputs.get(0).map(|x| x.address.as_str())
     }
 
+    /// Get original output address for transaction
+    pub fn output_address(&self) -> Option<&str> {
+        self.outputs.get(0).map(|x| x.address.as_str())
+    }
+
     /// Returns the amount spent by `addr` in this transaction
     /// The number returned is ZERO or NEGATIVE by design
     pub fn amount_spent(&self, addr: &str) -> Decimal {

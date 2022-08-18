@@ -30,4 +30,4 @@ jobs:
       - name: Format
         run: cargo fmt --all -- --check
       - name: Lint
-        run: cargo clippy -- -Dwarnings
+        run: cargo clippy --lib -- -Dwarnings

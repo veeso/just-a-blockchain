@@ -54,10 +54,19 @@ impl TransactionHelper {
         wallet: &Wallet,
         blockchain: &Chain,
     ) -> Result<Transaction, TransactionRejected> {
+        // Prevent negative amount
+        if opts.amount < Decimal::ZERO {
+            return Err(TransactionRejected::InsufficientBalance);
+        }
         Self::check_wallet_amount(&opts.input_address, opts.amount, blockchain)?;
         Self::check_output(&opts.output_address, blockchain)?;
+        // Calculate output amount; if amount is ZERO, keep zero (wallet creation)
+        let output_amount = if opts.amount == Decimal::ZERO {
+            Decimal::ZERO
+        } else {
+            opts.amount - opts.fee
+        };
         // make transaction
-        let output_amount = opts.amount - opts.fee;
         let transaction = TransactionBuilder::new(TransactionVersion::V1)
             .input(&opts.input_address, opts.amount)
             .output(&opts.output_address, output_amount)

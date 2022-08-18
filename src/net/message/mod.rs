@@ -17,10 +17,10 @@ use block::Block;
 use miners::RegisteredMiners;
 use request_block::RequestBlock;
 use rust_decimal::Decimal;
-use transaction::TransactionResult;
-pub use transaction::{Transaction, TransactionError, TransactionErrorCode, TransactionStatus};
-use wallet::WalletQueryResult;
-pub use wallet::{WalletQuery, WalletQueryError};
+pub use transaction::{
+    Transaction, TransactionError, TransactionErrorCode, TransactionResult, TransactionStatus,
+};
+pub use wallet::{WalletQuery, WalletQueryError, WalletQueryResult, WalletTransactions};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 #[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
