@@ -5,6 +5,7 @@
 // -- modules
 mod config;
 mod event;
+mod transaction_helper;
 mod wallet_helper;
 
 pub use config::Config;
@@ -14,6 +15,7 @@ use crate::mining::{Miner, MiningDatabase};
 use crate::net::{InnerSwarmEvent, Msg, Node, SwarmEvent};
 use crate::wallet::Wallet;
 use event::AppEvent;
+use transaction_helper::TransactionHelper;
 use wallet_helper::WalletHelper;
 
 use futures::StreamExt;

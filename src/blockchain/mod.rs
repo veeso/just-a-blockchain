@@ -107,18 +107,36 @@ impl Chain {
     }
 
     /// Get current jab amount for provided wallet
-    pub fn wallet_amount(&self, addr: &str) -> BlockchainResult<Decimal> {
+    pub fn wallet_amount(&self, addr: &str) -> BlockchainResult<Option<Decimal>> {
         let mut index = 0;
         let mut wallet_amount = Decimal::ZERO;
+        let mut wallet_found = false;
         while let Some(block) = self.get_block(index)? {
             if block.transaction().input_address() == Some(addr) {
                 // sum received money and sub spent money
                 wallet_amount += block.transaction().amount_received(addr);
                 wallet_amount -= block.transaction().amount_spent(addr);
+                wallet_found = true;
             }
             index += 1;
         }
-        Ok(wallet_amount)
+        if wallet_found {
+            Ok(Some(wallet_amount))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Returns whether a certain wallet exists
+    pub fn wallet_exists(&self, addr: &str) -> BlockchainResult<bool> {
+        let mut index = 0;
+        while let Some(block) = self.get_block(index)? {
+            if block.transaction().input_address() == Some(addr) {
+                return Ok(true);
+            }
+            index += 1;
+        }
+        Ok(false)
     }
 
     #[inline]
