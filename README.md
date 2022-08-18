@@ -34,7 +34,6 @@
 
 - [just-a-blockchain](#just-a-blockchain)
   - [About just-a-blockchain 💸](#about-just-a-blockchain-)
-  - [Features 🎁](#features-)
   - [Get started 🏁](#get-started-)
   - [Support the developer ☕](#support-the-developer-)
   - [Changelog ⏳](#changelog-)
@@ -44,11 +43,10 @@
 
 ## About just-a-blockchain 💸
 
-TBD
+Just-a-blockchain or JAB is just a blockchain I developed in Rust to learn how blockchains work. It is somehow inspired by Bitcoin.
+The repository provides two binaries and the jab library. The first binary is `jab` which runs a node of the jab blockchain, while the other is `jab-wallet`, which can be used to interact with the blockchain nodes in order to check your balance and to spend your JABs.
 
-## Features 🎁
-
-TBD
+> ⚠️ This blockchain IS SUPPOSED just to be used as a reference. DON'T USE IT for any real purpose, especially which involves money, since this blockchain just won't work. There's no proof of work of any kind of protection against double spending.
 
 ## Get started 🏁
 
@@ -64,6 +62,28 @@ TBD
 
     ```sh
     cp .env.{PROFILE} .env
+    ```
+
+3. Create your wallet
+
+    ```sh
+    jab-wallet -w <YOUR_WALLET_DIR> -g
+    ```
+
+    > ❗ a node must be running to perform this command. You can run a node with the existing genesis key
+
+4. Configure your environment
+
+    ```env
+    DATABASE_DIRECTORY="./db"
+    WALLET_SECRET_KEY="<YOUR_WALLET_DIR>/.jab.key"
+    ```
+
+5. Run a node
+
+    ```sh
+    export RUST_LOG=debug
+    jab
     ```
 
 ---
