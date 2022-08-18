@@ -3,6 +3,7 @@
 //! This module defines the payload for a transaction
 
 use rust_decimal::Decimal;
+use thiserror::Error;
 
 /// Transaction payload. Used to send money from a wallet to another
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
@@ -80,12 +81,17 @@ impl TransactionError {
 }
 
 /// Transaction error code
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+#[derive(Error, Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum TransactionErrorCode {
+    #[error("input wallet could not be found")]
     InputWalletNotFound,
+    #[error("output wallet could not be found")]
     OutputWalletNotFound,
+    #[error("you don't have enough jab to perform this transaction")]
     InsufficientBalance,
+    #[error("the transaction signature is invalid")]
     InvalidSignature,
+    #[error("blockchain error")]
     BlockchainError,
 }

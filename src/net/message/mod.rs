@@ -6,8 +6,12 @@ mod block;
 mod miners;
 mod request_block;
 mod transaction;
+mod wallet;
 
-use crate::{blockchain::Block as ChainBlock, mining::Miner};
+use crate::{
+    blockchain::{Block as ChainBlock, Transaction as BlockchainTransaction},
+    mining::Miner,
+};
 
 use block::Block;
 use miners::RegisteredMiners;
@@ -15,6 +19,8 @@ use request_block::RequestBlock;
 use rust_decimal::Decimal;
 use transaction::TransactionResult;
 pub use transaction::{Transaction, TransactionError, TransactionErrorCode, TransactionStatus};
+use wallet::WalletQueryResult;
+pub use wallet::{WalletQuery, WalletQueryError};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 #[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
@@ -31,6 +37,10 @@ pub enum Msg {
     Transaction(Transaction),
     /// A message sent back to the client, with the result of the transaction
     TransactionResult(TransactionResult),
+    /// A message sent by the client to request the wallet amount and the list of transactions for a certain address
+    WalletDetails(WalletQuery),
+    /// A message sent by a node to the client with the amount of the requested wallet
+    WalletDetailsResult(WalletQueryResult),
 }
 
 impl Msg {
@@ -84,5 +94,24 @@ impl Msg {
             TransactionStatus::Nok,
             Some(TransactionError::new(code, description)),
         ))
+    }
+
+    /// Create a `WalletDetails` message
+    pub fn wallet_details(peer_id: impl ToString, address: impl ToString) -> Self {
+        Self::WalletDetails(WalletQuery::new(peer_id, address))
+    }
+
+    /// Create a OK variant of a `WalletDetailsResult` message
+    pub fn wallet_details_result_ok(
+        address: impl ToString,
+        transactions: Vec<BlockchainTransaction>,
+        balance: Decimal,
+    ) -> Self {
+        Self::WalletDetailsResult(WalletQueryResult::ok(address, transactions, balance))
+    }
+
+    /// Create a ERROR variant of a `WalletDetailsResult` message
+    pub fn wallet_details_result_error(error: WalletQueryError) -> Self {
+        Self::WalletDetailsResult(WalletQueryResult::error(error))
     }
 }

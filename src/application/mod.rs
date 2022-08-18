@@ -9,10 +9,14 @@ mod transaction_helper;
 mod wallet_helper;
 
 pub use config::Config;
+use rust_decimal::Decimal;
 
-use crate::blockchain::{Block, Chain};
+use crate::blockchain::{Block, Chain, Transaction};
 use crate::mining::{Miner, MiningDatabase};
-use crate::net::{message::Transaction as MsgTransaction, InnerSwarmEvent, Msg, Node, SwarmEvent};
+use crate::net::{
+    message::{Transaction as MsgTransaction, WalletQuery, WalletQueryError},
+    InnerSwarmEvent, Msg, Node, SwarmEvent,
+};
 use crate::wallet::Wallet;
 use event::AppEvent;
 use transaction_helper::{TransactionHelper, TransactionOptions, TransactionRejected};
@@ -111,6 +115,12 @@ impl Application {
             Msg::TransactionResult(_) => {
                 debug!("ignoring transaction result");
             }
+            Msg::WalletDetails(query) => {
+                self.on_wallet_details_query(query).await;
+            }
+            Msg::WalletDetailsResult(_) => {
+                debug!("ignoring wallet details result");
+            }
         }
     }
 
@@ -184,6 +194,38 @@ impl Application {
     /// function to call on interval tick
     async fn on_get_next_block_tick(&mut self) {
         self.get_next_block().await;
+    }
+
+    /// Function to handle a `WalletDetails` query
+    async fn on_wallet_details_query(&mut self, query: WalletQuery) {
+        debug!("received wallet query for {}", query.address);
+        // collect transactions
+        match self.blockchain.wallet_transactions(&query.address) {
+            Err(_) => {
+                self.send_wallet_details_error(&query.peer_id, WalletQueryError::BlockchainError)
+                    .await
+            }
+            Ok(None) => {
+                self.send_wallet_details_error(&query.peer_id, WalletQueryError::WalletNotFound)
+                    .await
+            }
+            Ok(Some(transactions)) => {
+                // calc wallet balance
+                let mut balance = Decimal::ZERO;
+                for transaction in transactions.iter() {
+                    balance -= transaction.amount_spent(&query.address);
+                    balance += transaction.amount_received(&query.address);
+                }
+                debug!(
+                    "found {} transactions for wallet {}; current amount {} JAB",
+                    transactions.len(),
+                    query.address,
+                    balance
+                );
+                self.send_wallet_details_ok(&query.peer_id, &query.address, transactions, balance)
+                    .await
+            }
+        }
     }
 
     /// function to execute after the miner_db_timeout elapsed
@@ -306,7 +348,10 @@ impl Application {
             )
             .await
         {
-            error!("could not send transaction response to {}", err);
+            error!(
+                "could not send transaction response to {}: {}",
+                peer_id, err
+            );
         }
     }
 
@@ -314,7 +359,52 @@ impl Application {
     async fn send_transaction_response_ok(&mut self, peer_id: &str) {
         debug!("sending transaction response OK to {}", peer_id);
         if let Err(err) = self.node.send(peer_id, Msg::transaction_result_ok()).await {
-            error!("could not send transaction response to {}", err);
+            error!(
+                "could not send transaction response to {}: {}",
+                peer_id, err
+            );
+        }
+    }
+
+    /// Send wallet details response ERROR to peer
+    async fn send_wallet_details_error(&mut self, peer_id: &str, error: WalletQueryError) {
+        debug!(
+            "sending wallet details response ERROR to {}: {}",
+            peer_id, error
+        );
+        if let Err(err) = self
+            .node
+            .send(peer_id, Msg::wallet_details_result_error(error))
+            .await
+        {
+            error!(
+                "could not send wallet details response to {}: {}",
+                peer_id, err
+            );
+        }
+    }
+
+    /// Send wallet details response OK to peer
+    async fn send_wallet_details_ok(
+        &mut self,
+        peer_id: &str,
+        address: &str,
+        transactions: Vec<Transaction>,
+        balance: Decimal,
+    ) {
+        debug!("sending wallet details response OK to {}", peer_id);
+        if let Err(err) = self
+            .node
+            .send(
+                peer_id,
+                Msg::wallet_details_result_ok(address, transactions, balance),
+            )
+            .await
+        {
+            error!(
+                "could not send wallet details response to {}: {}",
+                peer_id, err
+            );
         }
     }
 }

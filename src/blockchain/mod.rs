@@ -127,6 +127,25 @@ impl Chain {
         }
     }
 
+    /// Collect transactions for wallet with provided address
+    pub fn wallet_transactions(&self, addr: &str) -> BlockchainResult<Option<Vec<Transaction>>> {
+        let mut index = 0;
+        let mut wallet_transactions = Vec::new();
+        let mut wallet_found = false;
+        while let Some(block) = self.get_block(index)? {
+            if block.transaction().input_address() == Some(addr) {
+                wallet_transactions.push(block.transaction().to_owned());
+                wallet_found = true;
+            }
+            index += 1;
+        }
+        if wallet_found {
+            Ok(Some(wallet_transactions))
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Returns whether a certain wallet exists
     pub fn wallet_exists(&self, addr: &str) -> BlockchainResult<bool> {
         let mut index = 0;
