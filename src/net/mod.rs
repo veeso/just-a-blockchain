@@ -3,7 +3,7 @@
 //! The network module provides the types to setup the P2P network of the jab blockchain
 
 mod error;
-mod message;
+pub mod message;
 
 use futures::channel::mpsc::{self, UnboundedReceiver, UnboundedSender};
 pub use libp2p::swarm::SwarmEvent as InnerSwarmEvent;
@@ -53,6 +53,7 @@ impl Node {
         debug!("tcp transport setup ok");
         // setup topic
         let topic = floodsub::Topic::new("jab");
+        let self_topic = floodsub::Topic::new(id.to_string());
         let (event_sender, event_receiver) = mpsc::unbounded();
         // Create a Swarm to manage peers and events.
         let swarm = {
@@ -62,7 +63,9 @@ impl Node {
                 event_sender,
             };
 
+            // subscribe to both topic
             behaviour.floodsub.subscribe(topic.clone());
+            behaviour.floodsub.subscribe(self_topic);
             // setup swarm
             SwarmBuilder::new(transport, behaviour, id)
                 // We want the connection background tasks to be spawned
@@ -98,6 +101,17 @@ impl Node {
         debug!("publishing {:?}", message);
         self.swarm.behaviour_mut().floodsub.publish(
             self.topic.clone(),
+            serde_json::json!(message).to_string().as_bytes(),
+        );
+        Ok(())
+    }
+
+    /// Send a message to a certain peer
+    pub async fn send(&mut self, peer_id: &str, message: Msg) -> NodeResult<()> {
+        debug!("sending {:?} to {}", message, peer_id);
+        let peer_topic = floodsub::Topic::new(peer_id);
+        self.swarm.behaviour_mut().floodsub.publish_any(
+            peer_topic,
             serde_json::json!(message).to_string().as_bytes(),
         );
         Ok(())

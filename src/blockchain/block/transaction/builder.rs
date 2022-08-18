@@ -3,7 +3,10 @@
 //! Used to SAFELY create transactions
 
 use super::{LockOutput, Transaction, TransactionVersion, UnlockInput};
+use crate::wallet::{Wallet, WalletError};
 
+use merkle::Hashable;
+use ring::digest::{Context, SHA256};
 use rust_decimal::Decimal;
 
 /// A safe builder to create transactions
@@ -36,6 +39,18 @@ impl TransactionBuilder {
     pub fn output(mut self, addr: impl ToString, amount: Decimal) -> Self {
         self.outputs.push(LockOutput::new(addr, amount));
         self
+    }
+
+    /// Sign transaction with wallet and return transaction
+    pub fn sign_with_wallet(self, wallet: &Wallet) -> Result<Transaction, WalletError> {
+        let mut transaction =
+            Transaction::new(self.version, self.inputs, self.outputs, String::default());
+        let mut digest_ctx = Context::new(&SHA256);
+        transaction.update_context(&mut digest_ctx);
+        let sha256 = digest_ctx.finish();
+        let signature = wallet.sign(sha256.as_ref())?;
+        transaction.signature = signature;
+        Ok(transaction)
     }
 
     /// Finish builder with signature

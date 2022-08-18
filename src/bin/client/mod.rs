@@ -62,10 +62,10 @@ impl App {
         transaction.update_context(&mut digest_ctx);
         let sha256 = digest_ctx.finish();
         let signature = wallet
-            .sign(&sha256.as_ref())
+            .sign(sha256.as_ref())
             .map_err(|e| anyhow::anyhow!("failed to sign genesis transaction: {}", e))?;
         // verify signature is correct
-        assert!(Wallet::verify(&sha256.as_ref(), &signature, &wallet.public_key()).unwrap());
+        assert!(Wallet::verify(sha256.as_ref(), &signature, &wallet.public_key()).unwrap());
         println!("genesis transaction signature: {}", signature);
         Ok(())
     }

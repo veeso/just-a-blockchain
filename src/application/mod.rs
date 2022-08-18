@@ -12,10 +12,10 @@ pub use config::Config;
 
 use crate::blockchain::{Block, Chain};
 use crate::mining::{Miner, MiningDatabase};
-use crate::net::{InnerSwarmEvent, Msg, Node, SwarmEvent};
+use crate::net::{message::Transaction as MsgTransaction, InnerSwarmEvent, Msg, Node, SwarmEvent};
 use crate::wallet::Wallet;
 use event::AppEvent;
-use transaction_helper::TransactionHelper;
+use transaction_helper::{TransactionHelper, TransactionOptions, TransactionRejected};
 use wallet_helper::WalletHelper;
 
 use futures::StreamExt;
@@ -104,6 +104,12 @@ impl Application {
             }
             Msg::RequestRegisteredMiners => {
                 self.on_registered_miners_requested().await;
+            }
+            Msg::Transaction(transaction) => {
+                self.on_transaction(transaction).await;
+            }
+            Msg::TransactionResult(_) => {
+                debug!("ignoring transaction result");
             }
         }
     }
@@ -227,16 +233,46 @@ impl Application {
         }
     }
 
-    /// Mine a new block in the blockchain
-    async fn mine_new_block(&mut self) {
+    /// `Transaction` message handler.
+    /// It tries to register the transaction in the blockchain and send a response to the requesting peer
+    async fn on_transaction(&mut self, transaction_msg: MsgTransaction) {
+        info!(
+            "requested transaction from {} to {}; amount: {}",
+            transaction_msg.input_address, transaction_msg.output_address, transaction_msg.amount
+        );
+        // Make transaction
+        let transaction = match TransactionHelper::create_transaction(
+            TransactionOptions::new(
+                transaction_msg.input_address,
+                transaction_msg.output_address,
+            )
+            .amount(transaction_msg.amount)
+            .fee(rust_decimal_macros::dec!(0.02))
+            .signature(transaction_msg.signature)
+            .public_key(transaction_msg.public_key),
+            &self.wallet,
+            &self.blockchain,
+        )
+        .await
+        {
+            Ok(t) => t,
+            Err(e) => {
+                self.send_transaction_response_nok(&transaction_msg.peer_id, e)
+                    .await;
+                return;
+            }
+        };
+        // generate next block
         self.miners.set_last_block_miner();
-        // TODO: new function to generate blocks
-        /*
-        info!("start mining a new block");
-        let new_block = match self.blockchain.generate_next_block() {
+        let new_block = match self.blockchain.generate_next_block(transaction) {
             Ok(block) => block,
             Err(err) => {
                 error!("could not generate new block: {}", err);
+                self.send_transaction_response_nok(
+                    &transaction_msg.peer_id,
+                    TransactionRejected::BlockchainError(err),
+                )
+                .await;
                 return;
             }
         };
@@ -245,6 +281,9 @@ impl Application {
             new_block.index(),
             new_block.header().merkle_root_hash()
         );
+        // send response OK
+        self.send_transaction_response_ok(&transaction_msg.peer_id)
+            .await;
         // send new block to other peers
         if let Err(err) = self.node.publish(Msg::block(new_block.clone())).await {
             error!("failed to send new block to peers: {}", err);
@@ -253,6 +292,29 @@ impl Application {
             "block #{} successfully broadcasted to peer",
             new_block.index()
         );
-        */
+    }
+
+    /// Send transaction response NOK to peer
+    async fn send_transaction_response_nok(&mut self, peer_id: &str, error: TransactionRejected) {
+        debug!("sending transaction response NOK to {}", peer_id);
+        let description = error.to_string();
+        if let Err(err) = self
+            .node
+            .send(
+                peer_id,
+                Msg::transaction_result_nok(error.into(), description),
+            )
+            .await
+        {
+            error!("could not send transaction response to {}", err);
+        }
+    }
+
+    /// Send transaction response OK to peer
+    async fn send_transaction_response_ok(&mut self, peer_id: &str) {
+        debug!("sending transaction response OK to {}", peer_id);
+        if let Err(err) = self.node.send(peer_id, Msg::transaction_result_ok()).await {
+            error!("could not send transaction response to {}", err);
+        }
     }
 }

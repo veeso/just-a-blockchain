@@ -26,11 +26,6 @@ impl MiningDatabase {
         &self.miners
     }
 
-    /// Get host miner
-    pub fn host(&self) -> &Miner {
-        self.miners.get(0).unwrap()
-    }
-
     /// Get miner associated to the last block mined
     pub fn last_block_mined_by(&self) -> Option<&Miner> {
         self.last_block_mined_by

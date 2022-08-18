@@ -5,6 +5,7 @@
 use crate::blockchain::{
     BlockchainError, Chain, Transaction, TransactionBuilder, TransactionVersion,
 };
+use crate::net::message::TransactionErrorCode;
 use crate::wallet::{Wallet, WalletError};
 
 use merkle::Hashable;
@@ -27,6 +28,20 @@ pub enum TransactionRejected {
     BlockchainError(BlockchainError),
     #[error("wallet error: {0}")]
     WalletError(WalletError),
+}
+
+impl From<TransactionRejected> for TransactionErrorCode {
+    fn from(e: TransactionRejected) -> Self {
+        match e {
+            TransactionRejected::BlockchainError(_) | TransactionRejected::WalletError(_) => {
+                Self::BlockchainError
+            }
+            TransactionRejected::InputWalletNotFound => Self::InputWalletNotFound,
+            TransactionRejected::InsufficientBalance => Self::InsufficientBalance,
+            TransactionRejected::InvalidSignature => Self::InvalidSignature,
+            TransactionRejected::OutputWalletNotFound => Self::OutputWalletNotFound,
+        }
+    }
 }
 
 /// Transaction helper
@@ -89,7 +104,7 @@ impl TransactionHelper {
         transaction.update_context(&mut digest_ctx);
         let sha256 = digest_ctx.finish();
         // verify signature is correct
-        match Wallet::verify(&sha256.as_ref(), transaction.signature(), pubkey) {
+        match Wallet::verify(sha256.as_ref(), transaction.signature(), pubkey) {
             Ok(true) => Ok(()),
             Ok(false) => Err(TransactionRejected::InvalidSignature),
             Err(err) => Err(TransactionRejected::WalletError(err)),

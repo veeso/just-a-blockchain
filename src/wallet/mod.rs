@@ -42,7 +42,7 @@ impl Wallet {
         }
     }
 
-    /// Get public key as bytes
+    /// Get public key as string
     pub fn public_key(&self) -> String {
         self.public_key.to_string()
     }

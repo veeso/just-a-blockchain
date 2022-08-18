@@ -49,12 +49,14 @@ impl Transaction {
         }
     }
 
+    #[allow(dead_code)]
     /// Add input to transaction
     pub fn input(mut self, addr: impl ToString, amount: Decimal) -> Self {
         self.inputs.push(UnlockInput::new(addr, amount));
         self
     }
 
+    #[allow(dead_code)]
     /// Add output to transaction
     pub fn output(mut self, addr: impl ToString, amount: Decimal) -> Self {
         self.outputs.push(LockOutput::new(addr, amount));
